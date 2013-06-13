@@ -147,6 +147,7 @@ int main(int, char**) {
     cudaPitchedPtr host_outptr =
         make_cudaPitchedPtr(&h_grid_out[0],
                             out_byte_row, out_width, out_height);
+    host_outptr.pitch = out_byte_row;    
     
     //configure for device to host copy
     memcpyParams.srcArray = 0;

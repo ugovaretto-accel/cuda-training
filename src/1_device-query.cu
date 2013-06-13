@@ -79,7 +79,7 @@ int main( int argc, const char** argv)
 
         std::cout << "  Total amount of global memory:                 " << deviceProp.totalGlobalMem << " bytes\n";
         
-        std::cout << "  Nummber of multiprocesses:                    " << deviceProp.multiProcessorCount << '\n';
+        std::cout << "  Number of multiprocessors:                     " << deviceProp.multiProcessorCount << '\n';
             
         std::cout << "  Total amount of constant memory:               " << deviceProp.totalConstMem << " bytes\n";
         std::cout << "  Total amount of shared memory per block:       " << deviceProp.sharedMemPerBlock << " bytes\n";
