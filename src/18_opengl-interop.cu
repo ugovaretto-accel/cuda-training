@@ -13,7 +13,6 @@
 // -I/usr/local/cuda/include -lOpenCL \
 // -I/usr/local/glm/include
 
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
