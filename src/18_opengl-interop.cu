@@ -1,10 +1,6 @@
 //OpenGL-CUDA interop
 //Author: Ugo Varetto
 
-
-///////////////// IN PROGRESS ////////////////////
-
-
 //Requires GLFW and GLM, to deal with the missing support for matrix stack
 //in OpenGL >= 3.3
 
@@ -12,6 +8,9 @@
 // -I ../../../build/castor/local/glfw/include \
 // -I ../../../build/castor/local/glm/include \
 // -L ../../../build/castor/local/glfw/lib  -lGL -lglfw
+
+
+//#FANCY parameters 258 16 0.25 400
 
 #include <cstdlib>
 #include <iostream>
@@ -32,6 +31,7 @@
 
 #define gle std::cout << "[GL] - " \
                       << __LINE__ << ' ' << glGetError() << std::endl;
+
 
 //globals required by CUDA: since CUDA does not allow direct texture write, it
 //is not possible to simply have a kernel that receives an input and output
@@ -108,21 +108,35 @@ GLuint create_program(const char* vertexSrc,
     return program;
 }
 
-
 //------------------------------------------------------------------------------
 std::vector< float > create_2d_grid(int width, int height,
                                      int xOffset, int yOffset,
                                      float value) {
     std::vector< float > g(width * height);
+#ifdef FANCY
+    for(int y = 0; y != height; ++y) {
+        for(int x = 0; x != width; ++x) {
+            if(y < yOffset
+               || x < xOffset
+               /*|| y >= height - yOffset
+               || x >= width - xOffset*/)
+                g[y * width + x] = x + y;
+            else if( x >= width - xOffset || y >= height - yOffset )
+                g[y * width + x] = 2*x + 3*y;
+            else
+                g[y * width + x] = float(0);
+        }
+    }
+#else
     for(int y = 0; y != height; ++y) {
         for(int x = 0; x != width; ++x) {
             if(y < yOffset
                || x < xOffset
                || y >= height - yOffset
-               || x >= width - xOffset) g[y * width + x] = value;
-            else g[y * width + x] = float(0);
-        }
+               || x >= width - xOffset) g[y * width + x] = x + y;
     }
+}
+#endif    
     return g;
 }
 
@@ -177,7 +191,14 @@ const char fragmentShaderSrc[] =  //normalize value to map it to shades of gray
     "uniform float minvalue;\n"
     "void main() {\n"
     "  float c = texture2D(cltexture, UV).r;\n"
-    "  color = vec3(smoothstep(minvalue, maxvalue, c));\n"
+    "  c = smoothstep(minvalue, maxvalue, c);\n"
+#ifdef FANCY    
+    "  if(c < 0.1) color = vec3(6 * c, 0, 0);\n"
+    "  else if(c >= 0.1 && c < 0.6) color = vec3(0.4, c, 0);\n"
+    "  else if(c >= 0.6) color = vec3(0.4, 0.4, c);\n"
+#else
+    "  color = vec3(c));\n"
+#endif    
     "}";
 const char vertexShaderSrc[] =
     "#version 330 core\n"
@@ -196,7 +217,7 @@ bool IS_EVEN(int v) { return v % 2 == 0; }
 //------------------------------------------------------------------------------
 int main(int argc, char** argv) {
 //USER INPUT
-    if(argc > 1 && argc < 5) {
+    if(argc > 1 && argc < 4) {
       std::cout << "usage: " << argv[0]
                 << "\n <size>\n"
                 << " <workgroup size>\n"
@@ -209,11 +230,11 @@ int main(int argc, char** argv) {
     }
     try {
         const int STENCIL_SIZE = 3;
-        const int SIZE = argc > 1 ? atoi(argv[2]) : 34;
-        const int THREADS_PER_BLOCK = argc > 1 ? atoi(argv[3]) : 4;
+        const int SIZE = argc > 1 ? atoi(argv[1]) : 34;
+        const int THREADS_PER_BLOCK = argc > 1 ? atoi(argv[2]) : 4;
         const int BLOCKS = (SIZE - 2 * (STENCIL_SIZE / 2)) / THREADS_PER_BLOCK;
-        const float DIFFUSION_SPEED = argc > 1 ? atof(argv[4]) : 0.22;
-        const float BOUNDARY_VALUE = argc > 5 ? atof(argv[5]) : 1.0f;
+        const float DIFFUSION_SPEED = argc > 1 ? atof(argv[3]) : 0.22;
+        const float BOUNDARY_VALUE = argc > 4 ? atof(argv[4]) : 1.0f;
 //GRAPHICS SETUP        
         glfwSetErrorCallback(error_callback);
 
@@ -372,7 +393,6 @@ int main(int argc, char** argv) {
         double start = glfwGetTime();
         double totalTime = 0;
         
-      
         float prevError = 0;
 
         while (!glfwWindowShouldClose(window) && !converged) {     
@@ -440,7 +460,7 @@ int main(int argc, char** argv) {
             if(relative_error <= MAX_RELATIVE_ERROR) converged = true;
 
 
-            //CUDA_CHECK(cudaDeviceSynchronize()); //Not needd since it's
+            //CUDA_CHECK(cudaDeviceSynchronize()); //Not needed since it's
                                                    //handled by the unmap calls 
             CUDA_CHECK(cudaUnbindTexture(texIn));
             CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferEven));
@@ -496,12 +516,13 @@ int main(int argc, char** argv) {
                       << " %   speed: " << (100 * error_rate) << " %/s   ";
             std::cout.flush();
         }
-
+#ifndef FANCY
         if(converged) 
             std::cout << "\nConverged in " 
                       << step << " steps"
                       << "  time: " << totalTime / 1E3 << " s"
                       << std::endl;
+#endif                      
 //CLEANUP
         glDeleteBuffers(1, &quadvbo);
         glDeleteBuffers(1, &texbo);
