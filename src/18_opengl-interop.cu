@@ -8,7 +8,7 @@
 //Requires GLFW and GLM, to deal with the missing support for matrix stack
 //in OpenGL >= 3.3
 
-//nvcc -arch=sm_20 ../src/18_opengl-interop.cu -DGL_GLEXT_PROTOTYPES \
+// nvcc -arch=sm_20 ../src/18_opengl-interop.cu -DGL_GLEXT_PROTOTYPES \
 // -I ../../../build/castor/local/glfw/include \
 // -I ../../../build/castor/local/glm/include \
 // -L ../../../build/castor/local/glfw/lib  -lGL -lglfw
@@ -28,6 +28,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "cuda_error_handler.h"
 
 #define gle std::cout << "[GL] - " \
                       << __LINE__ << ' ' << glGetError() << std::endl;
@@ -35,7 +36,7 @@
 //globals required by CUDA: since CUDA does not allow direct texture write, it
 //is not possible to simply have a kernel that receives an input and output
 //texture as easily done in OpenCL; cuda requires access to textures(input)
-//and surfaces(output) bound toarray and declared as global variables only
+//and surfaces(output) bound to arrays and declared as global variables
 
 //Mapping goes like this:
 //OpenGL texture -->
@@ -324,12 +325,22 @@ int main(int argc, char** argv) {
 
 
         //create CUDA buffers mapped to textures
+        //cudaGraphicsRegisterFlagsSurfaceLoadStore  is required to be able
+        //to read and write from / to textures with input textures and
+        //output arrays
         cudaGraphicsResource* cudaBufferEven = 0;
-        cudaGraphicsGLRegisterImage(&cudaBufferEven, texEven, GL_TEXTURE_2D,
-                                    cudaGraphicsMapFlagsNone);
+        CUDA_CHECK(
+            cudaGraphicsGLRegisterImage(
+                &cudaBufferEven,
+                texEven,
+                GL_TEXTURE_2D,
+                cudaGraphicsRegisterFlagsSurfaceLoadStore));
         cudaGraphicsResource* cudaBufferOdd = 0;
-        cudaGraphicsGLRegisterImage(&cudaBufferOdd, texOdd, GL_TEXTURE_2D,
-                                    cudaGraphicsMapFlagsNone); 
+        CUDA_CHECK(cudaGraphicsGLRegisterImage(
+                &cudaBufferOdd,
+                texOdd,
+                GL_TEXTURE_2D,
+                cudaGraphicsRegisterFlagsSurfaceLoadStore)); 
       
 
 //OPENGL RENDERING SHADERS
@@ -360,69 +371,80 @@ int main(int argc, char** argv) {
         std::cout << std::endl;
         double start = glfwGetTime();
         double totalTime = 0;
-       
-        //float prevError = 0;
-        while (!glfwWindowShouldClose(window) && !converged) {     
+        
+      
+        float prevError = 0;
 
+        while (!glfwWindowShouldClose(window) && !converged) {     
 //COMPUTE AND CHECK CONVERGENCE           
             glFinish(); //<-- ensure Open*G*L is done
 
             cudaArray* arrayIn = 0;
             cudaArray* arrayOut = 0;
-            cudaGraphicsMapResources(1, &cudaBufferEven);
-            cudaGraphicsMapResources(1, &cudaBufferOdd);
+            CUDA_CHECK(cudaGraphicsMapResources(1, &cudaBufferEven));
+            CUDA_CHECK(cudaGraphicsMapResources(1, &cudaBufferOdd));
                
             if(IS_EVEN(step)) {
-                cudaGraphicsSubResourceGetMappedArray(&arrayIn, cudaBufferEven,
-                                                      0, 0);
-                cudaGraphicsSubResourceGetMappedArray(&arrayOut, cudaBufferOdd,
-                                                      0, 0);
+                CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
+                                &arrayIn,
+                                cudaBufferEven,
+                                0, 0));
+                CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
+                                &arrayOut,
+                                cudaBufferOdd,
+                                0, 0));
                 tex = texOdd;
             } else {//even
-                cudaGraphicsSubResourceGetMappedArray(&arrayOut, cudaBufferEven,
-                                                      0, 0);
-                cudaGraphicsSubResourceGetMappedArray(&arrayIn, cudaBufferOdd,
-                                                      0, 0);
+                CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
+                                &arrayOut,
+                                cudaBufferEven,
+                                0, 0));
+                CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
+                                &arrayIn,
+                                cudaBufferOdd,
+                                0, 0));
                 tex = texEven;
             }
-            cudaBindTextureToArray(texIn, arrayIn);
-            cudaBindSurfaceToArray(surfOut, arrayOut);
+
+            CUDA_CHECK(cudaBindTextureToArray(texIn, arrayIn));
+            CUDA_CHECK(cudaBindSurfaceToArray(surfOut, arrayOut));
             
-            apply_stencil<<<BLOCKS, THREADS_PER_BLOCK>>>(DIFFUSION_SPEED);
-            // //CHECK FOR CONVERGENCE: extract element at grid center
-            // //and exit if |element value - boundary value| <= EPS    
-            // float centerOut = -BOUNDARY_VALUE;
-            // int activeBuffer = IS_EVEN(step) ? 1 : 0;
-            // cl::size_t<3> origin;
-            // origin[0] = SIZE / 2;
-            // origin[1] = SIZE / 2;
-            // origin[2] = 0;
-            // cl::size_t<3> region;
-            // region[0] = 1;
-            // region[1] = 1;
-            // region[2] = 1;
-            // queue.enqueueReadImage(clbuffers[activeBuffer],
-            //                        CL_TRUE,
-            //                        origin,
-            //                        region,
-            //                        0, //row pitch; zero for delegating
-            //                           //computation to OpenCL
-            //                        0, //slice pitch: for 3D only
-            //                        &centerOut);
-            // const double elapsed = glfwGetTime() - start;
-            // totalTime += elapsed;
-            // start = elapsed;
-            // const float MAX_RELATIVE_ERROR = 0.01;//%
-            // const float relative_error =
-            //     fabs(centerOut - BOUNDARY_VALUE) / BOUNDARY_VALUE;
-            // if(step == 0) prevError = relative_error;
-                
-            // const double error_rate = -(relative_error - prevError) / elapsed;
-            // if(relative_error <= MAX_RELATIVE_ERROR) converged = true;
-            cudaDeviceSynchronize(); //<-- ensure CUDA is done  
-            cudaUnbindTexture(texIn);
-            cudaGraphicsUnmapResources(1, &cudaBufferEven);
-            cudaGraphicsUnmapResources(1, &cudaBufferOdd);
+            LAUNCH_CUDA_KERNEL(
+                (apply_stencil<<<dim3(BLOCKS, BLOCKS, 1),
+                                 dim3(THREADS_PER_BLOCK, THREADS_PER_BLOCK, 1)
+                              >>>(DIFFUSION_SPEED)));
+            
+            //CHECK FOR CONVERGENCE: extract element at grid center
+            //and exit if |element value - boundary value| <= EPS    
+            float centerOut = -BOUNDARY_VALUE;
+            
+
+//configure for device to host copy
+
+         
+            CUDA_CHECK(cudaMemcpyFromArray(&centerOut,
+                                           arrayOut,
+                                           sizeof(float) * SIZE / 2,
+                                           SIZE / 2,
+                                           sizeof(float),
+                                           cudaMemcpyDeviceToHost));
+
+            const double elapsed = glfwGetTime() - start;
+            totalTime += elapsed;
+            start = elapsed;
+            const float MAX_RELATIVE_ERROR = 0.01;//1%
+            const float relative_error =
+                    fabs(centerOut - BOUNDARY_VALUE) / BOUNDARY_VALUE;               
+            const double error_rate = -(relative_error - prevError) / elapsed;
+            prevError = relative_error;
+            if(relative_error <= MAX_RELATIVE_ERROR) converged = true;
+
+
+            //CUDA_CHECK(cudaDeviceSynchronize()); //Not needd since it's
+                                                   //handled by the unmap calls 
+            CUDA_CHECK(cudaUnbindTexture(texIn));
+            CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferEven));
+            CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferOdd));
                    
 //RENDER
             // Clear the screen
@@ -456,24 +478,23 @@ int main(int argc, char** argv) {
             glBindTexture(GL_TEXTURE_2D, 0);
             glfwSwapBuffers(window);
             glfwPollEvents();
-
+    
             ++step; //next step 
-            //printout if all values are not NAN
-            // if(relative_error != relative_error || error_rate != error_rate) {
-            //     std::cout << "\nNaN" << std::endl;
-            //     exit(EXIT_SUCCESS); //EXIT_FAILURE is for execution errors not
-            //                         //for errors related to data
-            // }
-            // //if any value is inf do exit
-            // if(isinf(relative_error) || isinf(error_rate)) {
-            //     std::cout << "\ninf" << std::endl;
-            //     exit(EXIT_SUCCESS); //EXIT_FAILURE is for execution errors not
-            //                         //for errors related to data
-            // }
-            // std::cout << "\rstep: " << step 
-            //           << "   error: " << (100 * relative_error)
-            //           << " %   speed: " << (100 * error_rate) << " %/s   ";
-            // std::cout.flush();
+            //exit if any timing/error value is NAN or inf
+            if(relative_error != relative_error || error_rate != error_rate) {
+                std::cout << "\nNaN" << std::endl;
+                exit(EXIT_SUCCESS); //EXIT_FAILURE is for execution errors not
+                                    //for errors related to data
+            }
+            if(isinf(relative_error) || isinf(error_rate)) {
+                std::cout << "\ninf" << std::endl;
+                exit(EXIT_SUCCESS); //EXIT_FAILURE is for execution errors not
+                                    //for errors related to data
+            }
+            std::cout << "\rstep: " << step 
+                      << "   error: " << (100 * relative_error)
+                      << " %   speed: " << (100 * error_rate) << " %/s   ";
+            std::cout.flush();
         }
 
         if(converged) 

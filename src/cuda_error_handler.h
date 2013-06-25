@@ -1,6 +1,4 @@
 #pragma once
-#ifndef CUDA_ERROR_HANDLER_
-#define CUDA_ERROR_HANDLER_
 
 // CUDA Error handlers
 // Author: Ugo Varetto
@@ -12,7 +10,7 @@
 #include <iostream>
 #include <cstdlib>
 
-//Handle error conditions with or without exceptions (which are zero-cost, so no reason not to use them)
+//Handle error conditions with or without exceptions
 
 //In CUDA every function returns a status code.
 //Error conditions are signalled by a status code other than 'cudaSuccess'
@@ -40,18 +38,20 @@
 // DIE_ON_FAILED_KERNEL_LAUNCH( kernel<<<...>>>(...) )
  
 
-//Note: 'inline' is required simply because the functions are defined inside an include;
-//      not adding it violates the one definition rule when multiple source file include
-//      this include file 
+//Note: 'inline' is required simply because the functions are defined inside
+//       an include; not adding it violates the one definition rule when
+//       multiple source files include this include file 
 
 inline void HandleCUDAError( cudaError_t err,
                              const char *file,
                              int line,
                              const char* msg = 0 ) {
-    if( err != cudaSuccess )
-    {
+    if( err != cudaSuccess ) {
         std::ostringstream ss;
-        ss << ( msg != 0 ? msg : "" ) << " File: " << file << ", Line: " << line << ", Error: " << cudaGetErrorString( err );
+        ss << ( msg != 0 ? msg : "" ) << " File: " << file 
+                                      << ", Line: " << line 
+                                      << ", Error: " 
+                                      << cudaGetErrorString( err );
         throw std::runtime_error( ss.str() );
     }
 }
@@ -60,15 +60,17 @@ inline void DieOnCUDAError( cudaError_t err,
                             const char *file,
                             int line,
                             const char* msg = 0 ) {
-    if( err != cudaSuccess )
-    {
+    if( err != cudaSuccess ) {
       std::cerr << ( msg != 0 ? msg : "" ) 
                 << " File: " 
-                << file << ", Line: " << line << ", Error: " << cudaGetErrorString( err ) << std::endl;
+                << file << ", Line: " << line << ", Error: " 
+                << cudaGetErrorString( err ) << std::endl;
       exit( 1 );          
     }
 }
 
+
+#define CUDA_CHECK DIE_ON_CUDA_ERROR
 
 #define HANDLE_CUDA_ERROR( err ) ( HandleCUDAError( err, __FILE__, __LINE__ ) )
 
@@ -79,10 +81,8 @@ inline void DieOnCUDAError( cudaError_t err,
 //          during kernel execution
 #define LAUNCH_CUDA_KERNEL( k ) \
     k; \
-    HandleCUDAError( cudaGetLastError(), __FILE__, __LINE__, "(Kernel launch)" ); \
+    HandleCUDAError(cudaGetLastError(), __FILE__, __LINE__, "(Kernel launch)"); \
 
 #define DIE_ON_FAILED_KERNEL_LAUNCH( k ) \
     k; \
-    DieOnCUDAError( cudaGetLastError(), __FILE__, __LINE__, "(Kernel launch)" ); \
-
-#endif //CUDA_ERROR_HANDLER_
+    DieOnCUDAError(cudaGetLastError(), __FILE__, __LINE__, "(Kernel launch)");
