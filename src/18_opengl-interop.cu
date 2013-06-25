@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <cmath> //isinf
 
+#include <cuda_gl_interop.h>
 
 #include <GLFW/glfw3.h>
 
@@ -44,8 +45,8 @@
 //      CUDA Surface [OUT] !!!
 
 
-texture<float,1>  texIn; //read 
-surface<float,1>  surfaceOut; //write
+texture<float,2>  texIn; //read 
+surface<float,2>  surfaceOut; //write
 
 //------------------------------------------------------------------------------
 GLuint create_program(const char* vertexSrc,
@@ -136,7 +137,7 @@ void key_callback(GLFWwindow* window, int key,
 }
 
 
-__device float laplacian(int x, int y) {
+__device__ float laplacian(int x, int y) {
    const float v = tex2D(texIn, x, y);
    const float n = tex2D(texIn, x, y + 1);
    const float s = tex2D(texIn, x, y - 1);
@@ -145,12 +146,12 @@ __device float laplacian(int x, int y) {
    return (n + s + e + w - 4.0f * v);
 }
 
-__global void apply_stencil(float DIFFUSION_SPEED) {
+__global__ void apply_stencil(float DIFFUSION_SPEED) {
    const int x = blockIdx.x * blockDim.x + threadIdx.x + 1;
    const int y = blockIdx.y * blockDim.y + threadIdx.y + 1;
    const float v = tex2D(texIn, x, y);
    const float f = v + DIFFUSION_SPEED * laplacian(x, y);
-   surf2DWrite
+   // surf2DWrite TODO
 }
 
 
@@ -201,8 +202,8 @@ int main(int argc, char** argv) {
     try {
         const int STENCIL_SIZE = 3;
         const int SIZE = argc > 1 ? atoi(argv[2]) : 34;
-        const int GLOBAL_WORK_SIZE = SIZE - 2 * (STENCIL_SIZE / 2);
-        const int LOCAL_WORK_SIZE = argc > 1 ? atoi(argv[3]) : 4;
+        const int THREADS_PER_BLOCK = argc > 1 ? atoi(argv[3]) : 4;
+        const int BLOCKS = (SIZE - 2 * (STENCIL_SIZE / 2)) / THREADS_PER_BLOCK;
         const float DIFFUSION_SPEED = argc > 1 ? atof(argv[4]) : 0.22;
         const float BOUNDARY_VALUE = argc > 5 ? atof(argv[5]) : 1.0f;
 //GRAPHICS SETUP        
@@ -317,11 +318,11 @@ int main(int argc, char** argv) {
 
         //create CUDA buffers mapped to textures
         cudaGraphicsResource* cudaBufferEven = 0;
-        cudaGraphicsGLRegisterImage(&cudaBuffers[0], texEven, GL_TEXTURE_2D,
-                                    cudaGraphicsMapFlagsNone));
+        cudaGraphicsGLRegisterImage(&cudaBufferEven, texEven, GL_TEXTURE_2D,
+                                    cudaGraphicsMapFlagsNone);
         cudaGraphicsResource* cudaBufferOdd = 0;
-        cudaGraphicsGLRegisterImage(&cudaBuffers[0], texOdd, GL_TEXTURE_2D,
-                                    cudaGraphicsMapFlagsNone)); 
+        cudaGraphicsGLRegisterImage(&cudaBufferOdd, texOdd, GL_TEXTURE_2D,
+                                    cudaGraphicsMapFlagsNone); 
       
 
 //OPENGL RENDERING SHADERS
@@ -359,11 +360,10 @@ int main(int argc, char** argv) {
 //COMPUTE AND CHECK CONVERGENCE           
             glFinish(); //<-- ensure Open*G*L is done
 
-
             cudaArray* arrayIn = 0;
             cudaArray* arrayOut = 0;
-            cudaGraphicsMapResource(1, cudaBufferEven);
-            cudaGraphicsMapResource(1, cudaBufferOdd);
+            cudaGraphicsMapResources(1, &cudaBufferEven);
+            cudaGraphicsMapResources(1, &cudaBufferOdd);
                
             if(IS_EVEN(step)) {
                 cudaGraphicsSubResourceGetMappedArray(&arrayIn, cudaBufferEven,
@@ -379,7 +379,7 @@ int main(int argc, char** argv) {
                 tex = texEven;
             }
             cudaBindTextureToArray(texIn, arrayIn);
-            cudaBindSurfaceToArray(surfaceOut, arrayOut)
+            cudaBindSurfaceToArray(surfaceOut, arrayOut);
             
             apply_stencil<<<BLOCKS, THREADS_PER_BLOCK>>>(DIFFUSION_SPEED);
             // //CHECK FOR CONVERGENCE: extract element at grid center
@@ -412,11 +412,10 @@ int main(int argc, char** argv) {
                 
             // const double error_rate = -(relative_error - prevError) / elapsed;
             // if(relative_error <= MAX_RELATIVE_ERROR) converged = true;
-            cudaDeviceSynchronize() //<-- ensure CUDA is done  
+            cudaDeviceSynchronize(); //<-- ensure CUDA is done  
             cudaUnbindTexture(texIn);
-            cudaUnbindSurface(surfaceOut);
-            cudaGraphicsUnmapResource(1, cudaBufferEven);
-            cudaGraphicsUnmapResource(1, cudaBufferOdd);
+            cudaGraphicsUnmapResources(1, &cudaBufferEven);
+            cudaGraphicsUnmapResources(1, &cudaBufferOdd);
                    
 //RENDER
             // Clear the screen
@@ -486,9 +485,6 @@ int main(int argc, char** argv) {
 
         glfwTerminate();
         exit(EXIT_SUCCESS);
-    } catch(const cl::Error& e) {
-        std::cerr << e.what() << ": Error code " << e.err() << std::endl;   
-        exit(EXIT_FAILURE);
     } catch(const std::exception& e) {
         std::cerr << e.what() << std::endl;
         exit(EXIT_FAILURE);
