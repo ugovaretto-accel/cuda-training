@@ -4,14 +4,14 @@
 
 ///////////////// IN PROGRESS ////////////////////
 
-//Requires GLFWT and GLM, to deal with the missing support for matrix stack
+
+//Requires GLFW and GLM, to deal with the missing support for matrix stack
 //in OpenGL >= 3.3
 
-//nvcc ../src/18_cuda-opengl.cu \
-// ../src/gl-cl.cpp -I/usr/local/glfw/include \
-// -DGL_GLEXT_PROTOTYPES -L/usr/local/glfw/lib -lglfw \
-// -I/usr/local/cuda/include -lOpenCL \
-// -I/usr/local/glm/include
+//nvcc -arch=sm_20 ../src/18_opengl-interop.cu -DGL_GLEXT_PROTOTYPES \
+// -I ../../../build/castor/local/glfw/include \
+// -I ../../../build/castor/local/glm/include \
+// -L ../../../build/castor/local/glfw/lib  -lGL -lglfw
 
 #include <cstdlib>
 #include <iostream>
@@ -41,12 +41,13 @@
 //OpenGL texture -->
 //  CUDA Graphics resource -->
 //    CUDA Array -->
-//      CUDA Texture [IN]
-//      CUDA Surface [OUT] !!!
+//      CUDA Texture <float> [IN]
+//      CUDA Surface <void> [OUT] !!!
+///       use surf2Dwrite with x coordinate in bytes !!!
 
 
 texture<float,2>  texIn; //read 
-surface<float,2>  surfaceOut; //write
+surface<void,2>  surfOut; //write
 
 //------------------------------------------------------------------------------
 GLuint create_program(const char* vertexSrc,
@@ -136,7 +137,7 @@ void key_callback(GLFWwindow* window, int key,
         glfwSetWindowShouldClose(window, GL_TRUE);
 }
 
-
+//------------------------------------------------------------------------------
 __device__ float laplacian(int x, int y) {
    const float v = tex2D(texIn, x, y);
    const float n = tex2D(texIn, x, y + 1);
@@ -151,10 +152,16 @@ __global__ void apply_stencil(float DIFFUSION_SPEED) {
    const int y = blockIdx.y * blockDim.y + threadIdx.y + 1;
    const float v = tex2D(texIn, x, y);
    const float f = v + DIFFUSION_SPEED * laplacian(x, y);
-   // surf2DWrite TODO
+   //WARNING: CUDA requires the x coordinate of various data
+   //types to be in BYTES, NOT IN NUMBER OF ELEMENTS so
+   //the x coordinate has to be multiplied by sizeof(element type)
+   surf2Dwrite(f, surfOut,
+               x * sizeof(float),
+               y);
 }
 
 
+//------------------------------------------------------------------------------
 //GLSL Shaders
 
 //NOTE: it is important to keep the \n eol at the end of each line
@@ -354,7 +361,7 @@ int main(int argc, char** argv) {
         double start = glfwGetTime();
         double totalTime = 0;
        
-        float prevError = 0;
+        //float prevError = 0;
         while (!glfwWindowShouldClose(window) && !converged) {     
 
 //COMPUTE AND CHECK CONVERGENCE           
@@ -379,7 +386,7 @@ int main(int argc, char** argv) {
                 tex = texEven;
             }
             cudaBindTextureToArray(texIn, arrayIn);
-            cudaBindSurfaceToArray(surfaceOut, arrayOut);
+            cudaBindSurfaceToArray(surfOut, arrayOut);
             
             apply_stencil<<<BLOCKS, THREADS_PER_BLOCK>>>(DIFFUSION_SPEED);
             // //CHECK FOR CONVERGENCE: extract element at grid center
