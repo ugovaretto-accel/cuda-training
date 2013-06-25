@@ -10,7 +10,7 @@
 // -L ../../../build/castor/local/glfw/lib  -lGL -lglfw
 
 
-//#FANCY parameters 258 16 0.25 400
+//#FANCY parameters 130 8 0.22 .001
 
 #include <cstdlib>
 #include <iostream>
@@ -110,19 +110,28 @@ GLuint create_program(const char* vertexSrc,
 
 //------------------------------------------------------------------------------
 std::vector< float > create_2d_grid(int width, int height,
-                                     int xOffset, int yOffset,
-                                     float value) {
+                                    int xOffset, int yOffset,
+                                    float value) {
     std::vector< float > g(width * height);
 #ifdef FANCY
     for(int y = 0; y != height; ++y) {
         for(int x = 0; x != width; ++x) {
-            if(y < yOffset
-               || x < xOffset
-               /*|| y >= height - yOffset
-               || x >= width - xOffset*/)
-                g[y * width + x] = x + y;
-            else if( x >= width - xOffset || y >= height - yOffset )
-                g[y * width + x] = 2*x + 3*y;
+            if(y < yOffset )
+                g[y * width + x] = 
+                    value * (sin(x*8*6.28/width) 
+                             + cos(y*12*6.28/height));
+            else if(y >= height - yOffset) 
+                g[y * width + x] = 
+                    value * (sin(x*8*6.28/width) 
+                             + cos((height - y)*12*6.28/height));
+            else if( x < xOffset )
+                g[y * width + x] = 
+                    value * (sin(x*8*6.28/width) 
+                             + cos(y*12*6.28/height));
+            else if( x >= width - xOffset )
+                g[y * width + x] = 
+                    value * (sin((width - x)*8*6.28/width) 
+                             + cos(y*12*6.28/height));
             else
                 g[y * width + x] = float(0);
         }
@@ -133,7 +142,7 @@ std::vector< float > create_2d_grid(int width, int height,
             if(y < yOffset
                || x < xOffset
                || y >= height - yOffset
-               || x >= width - xOffset) g[y * width + x] = x + y;
+               || x >= width - xOffset) g[y * width + x] = value;
     }
 }
 #endif    
@@ -195,9 +204,10 @@ const char fragmentShaderSrc[] =  //normalize value to map it to shades of gray
 #ifdef FANCY    
     "  if(c < 0.1) color = vec3(6 * c, 0, 0);\n"
     "  else if(c >= 0.1 && c < 0.6) color = vec3(0.4, c, 0);\n"
-    "  else if(c >= 0.6) color = vec3(0.4, 0.4, c);\n"
+    "  else if(c >= 0.6 && c < 0.8) color = vec3(0.5 * c, 0.4, c);\n"
+    "  else color = vec3(0.3 * c, 0.2 * c, c);\n"
 #else
-    "  color = vec3(c));\n"
+    "  color = vec3(c);\n"
 #endif    
     "}";
 const char vertexShaderSrc[] =
@@ -228,315 +238,318 @@ int main(int argc, char** argv) {
                 << std::endl; 
       exit(EXIT_FAILURE);          
     }
-    try {
-        const int STENCIL_SIZE = 3;
-        const int SIZE = argc > 1 ? atoi(argv[1]) : 34;
-        const int THREADS_PER_BLOCK = argc > 1 ? atoi(argv[2]) : 4;
-        const int BLOCKS = (SIZE - 2 * (STENCIL_SIZE / 2)) / THREADS_PER_BLOCK;
-        const float DIFFUSION_SPEED = argc > 1 ? atof(argv[3]) : 0.22;
-        const float BOUNDARY_VALUE = argc > 4 ? atof(argv[4]) : 1.0f;
+  
+    const int STENCIL_SIZE = 3;
+    const int SIZE = argc > 1 ? atoi(argv[1]) : 34;
+    const int THREADS_PER_BLOCK = argc > 1 ? atoi(argv[2]) : 4;
+    const int BLOCKS = (SIZE - 2 * (STENCIL_SIZE / 2)) / THREADS_PER_BLOCK;
+    const float DIFFUSION_SPEED = argc > 1 ? atof(argv[3]) : 0.22;
+    const float BOUNDARY_VALUE = argc > 4 ? atof(argv[4]) : 1.0f;
 //GRAPHICS SETUP        
-        glfwSetErrorCallback(error_callback);
+    glfwSetErrorCallback(error_callback);
 
-        if(!glfwInit()) {
-            std::cerr << "ERROR - glfwInit" << std::endl;
-            exit(EXIT_FAILURE);
-        }
-
-        GLFWwindow* window = glfwCreateWindow(640, 480,
-                                              "OpenCL/GL interop", NULL, NULL);
-        if(!window) {
-            std::cerr << "ERROR - glfwCreateWindow" << std::endl;
-            glfwTerminate();
-            exit(EXIT_FAILURE);
-        }
-        
-        glfwSetKeyCallback(window, key_callback);
-   
-        glfwMakeContextCurrent(window);     
-      
-
-//GEOMETRY AND OPENCL-OPENGL MAPPING
- 
-        //geometry: textured quad; the texture color value is computed by
-        //OpenCL
-        float quad[] = {-1.0f,  1.0f,
-                         -1.0f, -1.0f,
-                          1.0f, -1.0f,
-                          1.0f, -1.0f,
-                          1.0f,  1.0f,
-                         -1.0f,  1.0f};
-
-        float texcoord[] = {0.0f, 1.0f,
-                             0.0f, 0.0f,
-                             1.0f, 0.0f,
-                             1.0f, 0.0f,
-                             1.0f, 1.0f,
-                             0.0f, 1.0f};                 
-        GLuint quadvbo;  
-        glGenBuffers(1, &quadvbo);
-        glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
-        glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(float),
-                     &quad[0], GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        GLuint texbo;  
-        glGenBuffers(1, &texbo);
-        glBindBuffer(GL_ARRAY_BUFFER, texbo);
-        glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(float),
-                     &texcoord[0], GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0); 
-
-//CUDA-GL MAPPING
-        //create textures mapped to CUDA buffers; initialize data in textures
-        //directly
-
-        std::vector< float > grid = create_2d_grid(SIZE, SIZE,
-                                                   STENCIL_SIZE / 2,
-                                                   STENCIL_SIZE / 2,
-                                                   BOUNDARY_VALUE);
-        GLuint texEven;  
-        glGenTextures(1, &texEven);
-
-        glBindTexture(GL_TEXTURE_2D, texEven);
-        
-        glTexImage2D(GL_TEXTURE_2D,
-                     0,
-                     GL_R32F, //IMPORTANT: required for unnormalized values;
-                              //without this all the values in the texture
-                              //are clamped to [0, 1];
-                     SIZE,
-                     SIZE,
-                     0,
-                     GL_RED,
-                     GL_FLOAT,
-                     &grid[0]);
-        //optional
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        //required - use GL_NEAREST instead of GL_LINEAR to visualize
-        //the actual discrete pixels
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); 
-       
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-
-        GLuint texOdd;  
-        glGenTextures(1, &texOdd);
-        glBindTexture(GL_TEXTURE_2D, texOdd);
-        glTexImage2D(GL_TEXTURE_2D,
-                     0,
-                     GL_R32F, //IMPORTANT: required for unnormalized values;
-                              //without this all the values in the texture
-                              //are clamped to [0, 1];
-                     SIZE,
-                     SIZE,
-                     0,
-                     GL_RED,
-                     GL_FLOAT,
-                     &grid[0]);
-        //optional
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        //required
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); 
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-
-        //create CUDA buffers mapped to textures
-        //cudaGraphicsRegisterFlagsSurfaceLoadStore  is required to be able
-        //to read and write from / to textures with input textures and
-        //output arrays
-        cudaGraphicsResource* cudaBufferEven = 0;
-        CUDA_CHECK(
-            cudaGraphicsGLRegisterImage(
-                &cudaBufferEven,
-                texEven,
-                GL_TEXTURE_2D,
-                cudaGraphicsRegisterFlagsSurfaceLoadStore));
-        cudaGraphicsResource* cudaBufferOdd = 0;
-        CUDA_CHECK(cudaGraphicsGLRegisterImage(
-                &cudaBufferOdd,
-                texOdd,
-                GL_TEXTURE_2D,
-                cudaGraphicsRegisterFlagsSurfaceLoadStore)); 
-      
-
-//OPENGL RENDERING SHADERS
-        //create opengl rendering program
-
-        GLuint glprogram = create_program(vertexShaderSrc, fragmentShaderSrc);
-            
-        //extract ids of shader variables
-        GLuint mvpID = glGetUniformLocation(glprogram, "MVP");
-        GLuint textureID = glGetUniformLocation(glprogram, "cltexture");
-        GLuint maxValueID = glGetUniformLocation(glprogram, "maxvalue");
-        GLuint minValueID = glGetUniformLocation(glprogram, "minvalue");
-
-        //enable gl program
-        glUseProgram(glprogram);
-
-        //set texture id
-        glUniform1i(textureID, 0); //always use texture 0
-
-        //set min and max value; required to map it to shades of gray
-        glUniform1f(maxValueID, BOUNDARY_VALUE);
-        glUniform1f(minValueID, 0.0f);
-
-//COMPUTE AND RENDER LOOP    
-        int step = 0;
-        GLuint tex = texEven;
-        bool converged = false;
-        std::cout << std::endl;
-        double start = glfwGetTime();
-        double totalTime = 0;
-        
-        float prevError = 0;
-
-        while (!glfwWindowShouldClose(window) && !converged) {     
-//COMPUTE AND CHECK CONVERGENCE           
-            glFinish(); //<-- ensure Open*G*L is done
-
-            cudaArray* arrayIn = 0;
-            cudaArray* arrayOut = 0;
-            CUDA_CHECK(cudaGraphicsMapResources(1, &cudaBufferEven));
-            CUDA_CHECK(cudaGraphicsMapResources(1, &cudaBufferOdd));
-               
-            if(IS_EVEN(step)) {
-                CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
-                                &arrayIn,
-                                cudaBufferEven,
-                                0, 0));
-                CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
-                                &arrayOut,
-                                cudaBufferOdd,
-                                0, 0));
-                tex = texOdd;
-            } else {//even
-                CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
-                                &arrayOut,
-                                cudaBufferEven,
-                                0, 0));
-                CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
-                                &arrayIn,
-                                cudaBufferOdd,
-                                0, 0));
-                tex = texEven;
-            }
-
-            CUDA_CHECK(cudaBindTextureToArray(texIn, arrayIn));
-            CUDA_CHECK(cudaBindSurfaceToArray(surfOut, arrayOut));
-            
-            LAUNCH_CUDA_KERNEL(
-                (apply_stencil<<<dim3(BLOCKS, BLOCKS, 1),
-                                 dim3(THREADS_PER_BLOCK, THREADS_PER_BLOCK, 1)
-                              >>>(DIFFUSION_SPEED)));
-            
-            //CHECK FOR CONVERGENCE: extract element at grid center
-            //and exit if |element value - boundary value| <= EPS    
-            float centerOut = -BOUNDARY_VALUE;
-            
-
-//configure for device to host copy
-
-         
-            CUDA_CHECK(cudaMemcpyFromArray(&centerOut,
-                                           arrayOut,
-                                           sizeof(float) * SIZE / 2,
-                                           SIZE / 2,
-                                           sizeof(float),
-                                           cudaMemcpyDeviceToHost));
-
-            const double elapsed = glfwGetTime() - start;
-            totalTime += elapsed;
-            start = elapsed;
-            const float MAX_RELATIVE_ERROR = 0.01;//1%
-            const float relative_error =
-                    fabs(centerOut - BOUNDARY_VALUE) / BOUNDARY_VALUE;               
-            const double error_rate = -(relative_error - prevError) / elapsed;
-            prevError = relative_error;
-            if(relative_error <= MAX_RELATIVE_ERROR) converged = true;
-
-
-            //CUDA_CHECK(cudaDeviceSynchronize()); //Not needed since it's
-                                                   //handled by the unmap calls 
-            CUDA_CHECK(cudaUnbindTexture(texIn));
-            CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferEven));
-            CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferOdd));
-                   
-//RENDER
-            // Clear the screen
-            glClear(GL_COLOR_BUFFER_BIT);
-        
-            int width, height;
-            glfwGetFramebufferSize(window, &width, &height);
-            glViewport(0, 0, width, height);
-            //setup OpenGL matrices: no more matrix stack in OpenGL >= 3 core
-            //profile, need to compute modelview and projection matrix manually
-            const float ratio = width / float(height);
-            const glm::mat4 orthoProj = glm::ortho(-ratio, ratio,
-                                                   -1.0f,  1.0f,
-                                                    1.0f,  -1.0f);
-            const glm::mat4 modelView = glm::mat4(1.0f);
-            const glm::mat4 MVP       = orthoProj * modelView;
-            glUniformMatrix4fv(mvpID, 1, GL_FALSE, glm::value_ptr(MVP));
-
-            //standard OpenGL core profile rendering
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, tex);
-            glEnableVertexAttribArray(0);
-            glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-            glEnableVertexAttribArray(1);
-            glBindBuffer(GL_ARRAY_BUFFER, texbo);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-            glDrawArrays(GL_TRIANGLES, 0, 6);    
-            glDisableVertexAttribArray(0);
-            glDisableVertexAttribArray(1);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glfwSwapBuffers(window);
-            glfwPollEvents();
-    
-            ++step; //next step 
-            //exit if any timing/error value is NAN or inf
-            if(relative_error != relative_error || error_rate != error_rate) {
-                std::cout << "\nNaN" << std::endl;
-                exit(EXIT_SUCCESS); //EXIT_FAILURE is for execution errors not
-                                    //for errors related to data
-            }
-            if(isinf(relative_error) || isinf(error_rate)) {
-                std::cout << "\ninf" << std::endl;
-                exit(EXIT_SUCCESS); //EXIT_FAILURE is for execution errors not
-                                    //for errors related to data
-            }
-            std::cout << "\rstep: " << step 
-                      << "   error: " << (100 * relative_error)
-                      << " %   speed: " << (100 * error_rate) << " %/s   ";
-            std::cout.flush();
-        }
-#ifndef FANCY
-        if(converged) 
-            std::cout << "\nConverged in " 
-                      << step << " steps"
-                      << "  time: " << totalTime / 1E3 << " s"
-                      << std::endl;
-#endif                      
-//CLEANUP
-        glDeleteBuffers(1, &quadvbo);
-        glDeleteBuffers(1, &texbo);
-        glDeleteTextures(1, &texEven);
-        glDeleteTextures(1, &texOdd);
-        glfwDestroyWindow(window);
-
-        //TODO: DELETE CUDA RESOURCES
-
-        glfwTerminate();
-        exit(EXIT_SUCCESS);
-    } catch(const std::exception& e) {
-        std::cerr << e.what() << std::endl;
+    if(!glfwInit()) {
+        std::cerr << "ERROR - glfwInit" << std::endl;
         exit(EXIT_FAILURE);
     }
+
+    GLFWwindow* window = glfwCreateWindow(640, 480,
+                                          "OpenCL/GL interop", NULL, NULL);
+    if(!window) {
+        std::cerr << "ERROR - glfwCreateWindow" << std::endl;
+        glfwTerminate();
+        exit(EXIT_FAILURE);
+    }
+    
+    glfwSetKeyCallback(window, key_callback);
+
+    glfwMakeContextCurrent(window);     
+  
+
+//GEOMETRY AND OPENCL-OPENGL MAPPING
+
+    //geometry: textured quad; the texture color value is computed by
+    //OpenCL
+    float quad[] = {-1.0f,  1.0f,
+                     -1.0f, -1.0f,
+                      1.0f, -1.0f,
+                      1.0f, -1.0f,
+                      1.0f,  1.0f,
+                     -1.0f,  1.0f};
+
+    float texcoord[] = {0.0f, 1.0f,
+                         0.0f, 0.0f,
+                         1.0f, 0.0f,
+                         1.0f, 0.0f,
+                         1.0f, 1.0f,
+                         0.0f, 1.0f};                 
+    GLuint quadvbo;  
+    glGenBuffers(1, &quadvbo);
+    glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(float),
+                 &quad[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    GLuint texbo;  
+    glGenBuffers(1, &texbo);
+    glBindBuffer(GL_ARRAY_BUFFER, texbo);
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(float),
+                 &texcoord[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0); 
+
+//CUDA-GL MAPPING
+    //create textures mapped to CUDA buffers; initialize data in textures
+    //directly
+
+    std::vector< float > grid = create_2d_grid(SIZE, SIZE,
+                                               STENCIL_SIZE / 2,
+                                               STENCIL_SIZE / 2,
+                                               BOUNDARY_VALUE);
+    GLuint texEven;  
+    glGenTextures(1, &texEven);
+
+    glBindTexture(GL_TEXTURE_2D, texEven);
+    
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 GL_R32F, //IMPORTANT: required for unnormalized values;
+                          //without this all the values in the texture
+                          //are clamped to [0, 1];
+                 SIZE,
+                 SIZE,
+                 0,
+                 GL_RED,
+                 GL_FLOAT,
+                 &grid[0]);
+    //optional
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    //required - use GL_NEAREST instead of GL_LINEAR to visualize
+    //the actual discrete pixels
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); 
+   
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+
+    GLuint texOdd;  
+    glGenTextures(1, &texOdd);
+    glBindTexture(GL_TEXTURE_2D, texOdd);
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 GL_R32F, //IMPORTANT: required for unnormalized values;
+                          //without this all the values in the texture
+                          //are clamped to [0, 1];
+                 SIZE,
+                 SIZE,
+                 0,
+                 GL_RED,
+                 GL_FLOAT,
+                 &grid[0]);
+    //optional
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    //required
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); 
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+
+    //create CUDA buffers mapped to textures
+    //cudaGraphicsRegisterFlagsSurfaceLoadStore  is required to be able
+    //to read and write from / to textures with input textures and
+    //output arrays
+    cudaGraphicsResource* cudaBufferEven = 0;
+    CUDA_CHECK(
+        cudaGraphicsGLRegisterImage(
+            &cudaBufferEven,
+            texEven,
+            GL_TEXTURE_2D,
+            cudaGraphicsRegisterFlagsSurfaceLoadStore));
+    cudaGraphicsResource* cudaBufferOdd = 0;
+    CUDA_CHECK(cudaGraphicsGLRegisterImage(
+            &cudaBufferOdd,
+            texOdd,
+            GL_TEXTURE_2D,
+            cudaGraphicsRegisterFlagsSurfaceLoadStore)); 
+  
+
+//OPENGL RENDERING SHADERS
+    //create opengl rendering program
+
+    GLuint glprogram = create_program(vertexShaderSrc, fragmentShaderSrc);
+        
+    //extract ids of shader variables
+    GLuint mvpID = glGetUniformLocation(glprogram, "MVP");
+    GLuint textureID = glGetUniformLocation(glprogram, "cltexture");
+    GLuint maxValueID = glGetUniformLocation(glprogram, "maxvalue");
+    GLuint minValueID = glGetUniformLocation(glprogram, "minvalue");
+
+    //enable gl program
+    glUseProgram(glprogram);
+
+    //set texture id
+    glUniform1i(textureID, 0); //always use texture 0
+
+    //set min and max value; required to map it to shades of gray
+    glUniform1f(maxValueID, BOUNDARY_VALUE);
+    glUniform1f(minValueID, 0.0f);
+
+//COMPUTE AND RENDER LOOP    
+    int step = 0;
+    GLuint tex = texEven;
+    bool converged = false;
+    std::cout << std::endl;
+    double start = glfwGetTime();
+    double totalTime = 0;
+    
+    float prevError = 0;
+
+    while (!glfwWindowShouldClose(window) && !converged) {     
+//COMPUTE AND CHECK CONVERGENCE           
+        glFinish(); //<-- ensure Open*G*L is done
+
+        cudaArray* arrayIn = 0;
+        cudaArray* arrayOut = 0;
+        CUDA_CHECK(cudaGraphicsMapResources(1, &cudaBufferEven));
+        CUDA_CHECK(cudaGraphicsMapResources(1, &cudaBufferOdd));
+           
+        if(IS_EVEN(step)) {
+            CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
+                            &arrayIn,
+                            cudaBufferEven,
+                            0, 0));
+            CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
+                            &arrayOut,
+                            cudaBufferOdd,
+                            0, 0));
+            tex = texOdd;
+        } else {//even
+            CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
+                            &arrayOut,
+                            cudaBufferEven,
+                            0, 0));
+            CUDA_CHECK(cudaGraphicsSubResourceGetMappedArray(
+                            &arrayIn,
+                            cudaBufferOdd,
+                            0, 0));
+            tex = texEven;
+        }
+
+        CUDA_CHECK(cudaBindTextureToArray(texIn, arrayIn));
+        CUDA_CHECK(cudaBindSurfaceToArray(surfOut, arrayOut));
+        
+        LAUNCH_CUDA_KERNEL(
+            (apply_stencil<<<dim3(BLOCKS, BLOCKS, 1),
+                             dim3(THREADS_PER_BLOCK, THREADS_PER_BLOCK, 1)
+                          >>>(DIFFUSION_SPEED)));
+        
+      
+        
+
+#ifndef FANCY
+
+        //CHECK FOR CONVERGENCE: extract element at grid center
+        //and exit if |element value - boundary value| <= EPS    
+        float centerOut = -BOUNDARY_VALUE;     
+        
+        CUDA_CHECK(cudaMemcpyFromArray(&centerOut,
+                                       arrayOut,
+                                       sizeof(float) * SIZE / 2,
+                                       SIZE / 2,
+                                       sizeof(float),
+                                       cudaMemcpyDeviceToHost));
+
+        const double elapsed = glfwGetTime() - start;
+        totalTime += elapsed;
+        start = elapsed;
+        const float MAX_RELATIVE_ERROR = 0.01;//1%
+        const float relative_error =
+                fabs(centerOut - BOUNDARY_VALUE) / BOUNDARY_VALUE;               
+        const double error_rate = -(relative_error - prevError) / elapsed;
+        prevError = relative_error;
+        if(relative_error <= MAX_RELATIVE_ERROR) converged = true;
+#endif
+
+        //CUDA_CHECK(cudaDeviceSynchronize()); //Not needed since it's
+                                               //handled by the unmap calls 
+        CUDA_CHECK(cudaUnbindTexture(texIn));
+        CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferEven));
+        CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferOdd));
+               
+//RENDER
+        // Clear the screen
+        glClear(GL_COLOR_BUFFER_BIT);
+    
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+        glViewport(0, 0, width, height);
+        //setup OpenGL matrices: no more matrix stack in OpenGL >= 3 core
+        //profile, need to compute modelview and projection matrix manually
+        const float ratio = width / float(height);
+        const glm::mat4 orthoProj = glm::ortho(-ratio, ratio,
+                                               -1.0f,  1.0f,
+                                                1.0f,  -1.0f);
+        const glm::mat4 modelView = glm::mat4(1.0f);
+        const glm::mat4 MVP       = orthoProj * modelView;
+        glUniformMatrix4fv(mvpID, 1, GL_FALSE, glm::value_ptr(MVP));
+
+        //standard OpenGL core profile rendering
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glEnableVertexAttribArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(1);
+        glBindBuffer(GL_ARRAY_BUFFER, texbo);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+        glDrawArrays(GL_TRIANGLES, 0, 6);    
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+
+        ++step; //next step 
+#ifdef FANCY
+        std::cout << "\rstep: " << 
+        step; std::cout.flush();
+#else     
+        //exit if any timing/error value is NAN or inf
+        if(relative_error != relative_error || error_rate != error_rate) {
+            std::cout << "\nNaN" << std::endl;
+            exit(EXIT_SUCCESS); //EXIT_FAILURE is for execution errors not
+                                //for errors related to data
+        }
+        if(isinf(relative_error) || isinf(error_rate)) {
+            std::cout << "\ninf" << std::endl;
+            exit(EXIT_SUCCESS); //EXIT_FAILURE is for execution errors not
+                                //for errors related to data
+        }
+        std::cout << "\rstep: " << step 
+                  << "   error: " << (100 * relative_error)
+                  << " %   speed: " << (100 * error_rate) << " %/s   ";
+        std::cout.flush();
+#endif 
+    }
+
+
+    if(converged) 
+        std::cout << "\nConverged in " 
+                  << step << " steps"
+                  << "  time: " << totalTime / 1E3 << " s"
+                  << std::endl;
+                     
+//CLEANUP
+    glDeleteBuffers(1, &quadvbo);
+    glDeleteBuffers(1, &texbo);
+    glDeleteTextures(1, &texEven);
+    glDeleteTextures(1, &texOdd);
+    glfwDestroyWindow(window);
+
+    //TODO: DELETE CUDA RESOURCES
+
+    glfwTerminate();
+
     return 0;
 }
