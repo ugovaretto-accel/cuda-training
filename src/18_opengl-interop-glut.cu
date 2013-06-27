@@ -1,22 +1,27 @@
 //OpenGL-CUDA interop
 //Author: Ugo Varetto
 
-//Requires GLFW and GLM, to deal with the missing support for matrix stack
+//Note: GLUT is required when using a remote client(vnc+vglrun) to avoid
+//issues with the X11 keyboard extension.
+//Requires GLM, to deal with the missing support for matrix stack
 //in OpenGL >= 3.3
 
-// nvcc -arch=sm_20 ../src/18_opengl-interop.cu -DGL_GLEXT_PROTOTYPES \
-// -I ../../../build/castor/local/glfw/include \
+// nvcc -arch=sm_20 ../src/18_opengl-interop-glut.cu -DGL_GLEXT_PROTOTYPES \
 // -I ../../../build/castor/local/glm/include \
-// -L ../../../build/castor/local/glfw/lib  -lGL -lglfw
+// -L ../../../build/castor/local/glfw/lib  -lGL -lglut
 
 
 //#FANCY parameters 130 8 0.22 .001
+//standard parameters e.g. 66 4 0.1 0.01
 
 #include <cstdlib>
 #include <iostream>
 #include <vector>
 #include <stdexcept>
 #include <cmath> //isinf
+#include <ctime>
+
+#include <sys/time.h> //get time of day
 
 #ifdef FANCY
 #ifndef M_PI
@@ -26,7 +31,7 @@
 
 #include <cuda_gl_interop.h>
 
-#include <GLFW/glfw3.h>
+#include <GL/freeglut.h>
 
 // Include GLM
 #include <glm/glm.hpp>
@@ -34,6 +39,9 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "cuda_error_handler.h"
+
+//use timer with resolution <= 10E6; GLUT_ELAPSED_TIME only has ms resolution
+#include "Timer.h"
 
 #define gle std::cout << "[GL] - " \
                       << __LINE__ << ' ' << glGetError() << std::endl;
@@ -148,24 +156,26 @@ std::vector< float > create_2d_grid(int width, int height,
             if(y < yOffset
                || x < xOffset
                || y >= height - yOffset
-               || x >= width - xOffset) g[y * width + x] = value;
+               || x >= width - xOffset)
+                g[y * width + x] = value;
+            else
+                g[y * width + x] = float(0);     
     }
 }
 #endif    
     return g;
 }
 
-//------------------------------------------------------------------------------
-void error_callback(int error, const char* description) {
-    std::cerr << description << std::endl;
-}
 
 //------------------------------------------------------------------------------
-void key_callback(GLFWwindow* window, int key,
-                  int scancode, int action, int mods) {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GL_TRUE);
-}
+void key_callback(unsigned char key, int xx, int yy) {
+    switch(key) {
+        case 27: // QUIT
+            exit(EXIT_SUCCESS);
+        default:
+            ;    
+    }
+}    
 
 //------------------------------------------------------------------------------
 __device__ float laplacian(int x, int y) {
@@ -213,7 +223,8 @@ const char fragmentShaderSrc[] =  //normalize value to map it to shades of gray
     "  else if(c >= 0.6 && c < 0.8) color = vec3(0.5 * c, 0.4, c);\n"
     "  else color = vec3(0.3 * c, 0.2 * c, c);\n"
 #else
-    "  color = vec3(c);\n"
+    "  if(c < 0.5f) color=vec3(c, 0.1, 0.1);\n"
+    "  else color = vec3(0.1, 0.1, c);\n"
 #endif    
     "}";
 const char vertexShaderSrc[] =
@@ -227,6 +238,7 @@ const char vertexShaderSrc[] =
     "  UV = tex;\n"
     "}";   
 
+void f(){}
 //------------------------------------------------------------------------------
 bool IS_EVEN(int v) { return v % 2 == 0; }
 
@@ -252,53 +264,42 @@ int main(int argc, char** argv) {
     const float DIFFUSION_SPEED = argc > 1 ? atof(argv[3]) : 0.22;
     const float BOUNDARY_VALUE = argc > 4 ? atof(argv[4]) : 1.0f;
 //GRAPHICS SETUP        
-    glfwSetErrorCallback(error_callback);
 
-    if(!glfwInit()) {
-        std::cerr << "ERROR - glfwInit" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    GLFWwindow* window = glfwCreateWindow(640, 480,
-                                          "CUDA/GL interop", NULL, NULL);
-    if(!window) {
-        std::cerr << "ERROR - glfwCreateWindow" << std::endl;
-        glfwTerminate();
-        exit(EXIT_FAILURE);
-    }
-    
-    glfwSetKeyCallback(window, key_callback);
-
-    glfwMakeContextCurrent(window);     
-  
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_RGBA);
+    glutInitWindowSize(640,480);
+    glutKeyboardFunc(key_callback);
+    glutDisplayFunc(f);
+    glutIdleFunc(f);
+    glutCreateWindow("CUDA - GL interop");   
 
 //GEOMETRY AND CUDA-OPENGL MAPPING
 
     //geometry: textured quad; the texture color value is computed by CUDA
     float quad[] = {-1.0f,  1.0f,
-                     -1.0f, -1.0f,
-                      1.0f, -1.0f,
-                      1.0f, -1.0f,
-                      1.0f,  1.0f,
-                     -1.0f,  1.0f};
+                    -1.0f, -1.0f,
+                     1.0f, -1.0f,
+                     1.0f, -1.0f,
+                     1.0f,  1.0f,
+                    -1.0f,  1.0f};
 
     float texcoord[] = {0.0f, 1.0f,
-                         0.0f, 0.0f,
-                         1.0f, 0.0f,
-                         1.0f, 0.0f,
-                         1.0f, 1.0f,
-                         0.0f, 1.0f};                 
+                        0.0f, 0.0f,
+                        1.0f, 0.0f,
+                        1.0f, 0.0f,
+                        1.0f, 1.0f,
+                        0.0f, 1.0f};                 
     GLuint quadvbo;  
-    glGenBuffers(1, &quadvbo);
-    glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(float),
-                 &quad[0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glGenBuffers(1, &quadvbo);  
+    glBindBuffer(GL_ARRAY_BUFFER, quadvbo);  
+    glBufferData(GL_ARRAY_BUFFER, 6 * 2 * sizeof(float),
+                 &quad[0], GL_STATIC_DRAW);   
+    glBindBuffer(GL_ARRAY_BUFFER, 0);   
 
     GLuint texbo;  
     glGenBuffers(1, &texbo);
     glBindBuffer(GL_ARRAY_BUFFER, texbo);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(float),
+    glBufferData(GL_ARRAY_BUFFER, 6 * 2 * sizeof(float),
                  &texcoord[0], GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0); 
 
@@ -405,12 +406,14 @@ int main(int argc, char** argv) {
     GLuint tex = texEven;
     bool converged = false;
     std::cout << std::endl;
-    double start = glfwGetTime();
     double totalTime = 0;
-    
-    float prevError = 0;
-
-    while (!glfwWindowShouldClose(window) && !converged) {     
+    float prevError = 1;
+    Timer timer;
+    timer.Start();
+   
+    while(!converged) {     
+        glutMainLoopEvent(); //<- due to a bug in freeglut this might indeed
+                             //not work
 //COMPUTE AND CHECK CONVERGENCE           
         glFinish(); //<-- ensure Open*G*L is done
 
@@ -449,9 +452,6 @@ int main(int argc, char** argv) {
                              dim3(THREADS_PER_BLOCK, THREADS_PER_BLOCK, 1)
                           >>>(DIFFUSION_SPEED)));
         
-      
-        
-
 #ifndef FANCY
 
         //CHECK FOR CONVERGENCE: extract element at grid center
@@ -465,13 +465,13 @@ int main(int argc, char** argv) {
                                        sizeof(float),
                                        cudaMemcpyDeviceToHost));
 
-        const double elapsed = glfwGetTime() - start;
+        const double elapsed = timer.Step() / 1E3; //ms --> s
         totalTime += elapsed;
-        start = elapsed;
+       
         const float MAX_RELATIVE_ERROR = 0.01;//1%
         const float relative_error =
                 fabs(centerOut - BOUNDARY_VALUE) / BOUNDARY_VALUE;               
-        const double error_rate = -(relative_error - prevError) / elapsed;
+        const double error_rate = (prevError - relative_error) / elapsed;
         prevError = relative_error;
         if(relative_error <= MAX_RELATIVE_ERROR) converged = true;
 #endif
@@ -481,13 +481,13 @@ int main(int argc, char** argv) {
         CUDA_CHECK(cudaUnbindTexture(texIn));
         CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferEven));
         CUDA_CHECK(cudaGraphicsUnmapResources(1, &cudaBufferOdd));
-               
+        cudaDeviceSynchronize();       
 //RENDER
         // Clear the screen
         glClear(GL_COLOR_BUFFER_BIT);
     
-        int width, height;
-        glfwGetFramebufferSize(window, &width, &height);
+        const int width = glutGet(GLUT_WINDOW_WIDTH);
+        const int height = glutGet(GLUT_WINDOW_HEIGHT);
         glViewport(0, 0, width, height);
         //setup OpenGL matrices: no more matrix stack in OpenGL >= 3 core
         //profile, need to compute modelview and projection matrix manually
@@ -500,21 +500,25 @@ int main(int argc, char** argv) {
         glUniformMatrix4fv(mvpID, 1, GL_FALSE, glm::value_ptr(MVP));
 
         //standard OpenGL core profile rendering
-        glActiveTexture(GL_TEXTURE0);
+        glActiveTexture(GL_TEXTURE0);        
         glBindTexture(GL_TEXTURE_2D, tex);
+
         glEnableVertexAttribArray(0);
+
         glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(1);
+       
         glBindBuffer(GL_ARRAY_BUFFER, texbo);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-        glDrawArrays(GL_TRIANGLES, 0, 6);    
+        glDrawArrays(GL_TRIANGLES, 0, 6); 
+    
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
         glBindTexture(GL_TEXTURE_2D, 0);
-        glfwSwapBuffers(window);
-        glfwPollEvents();
 
+        glutSwapBuffers();
+        glutPostRedisplay();
         ++step; //next step 
 #ifdef FANCY
         std::cout << "\rstep: " << 
@@ -542,7 +546,7 @@ int main(int argc, char** argv) {
     if(converged) 
         std::cout << "\nConverged in " 
                   << step << " steps"
-                  << "  time: " << totalTime / 1E3 << " s"
+                  << "  time: " << totalTime << " s"
                   << std::endl;
                      
 //CLEANUP
@@ -550,9 +554,6 @@ int main(int argc, char** argv) {
     glDeleteBuffers(1, &texbo);
     glDeleteTextures(1, &texEven);
     glDeleteTextures(1, &texOdd);
-    glfwDestroyWindow(window);
-
-    glfwTerminate();
 
     return 0;
 }
