@@ -18,6 +18,12 @@
 #include <stdexcept>
 #include <cmath> //isinf
 
+#ifdef FANCY
+#ifndef M_PI
+#define M_PI 3.1415926535897932
+#endif
+#endif
+
 #include <cuda_gl_interop.h>
 
 #include <GLFW/glfw3.h>
@@ -118,20 +124,20 @@ std::vector< float > create_2d_grid(int width, int height,
         for(int x = 0; x != width; ++x) {
             if(y < yOffset )
                 g[y * width + x] = 
-                    value * (sin(x*8*6.28/width) 
-                             + cos(y*12*6.28/height));
+                    value * (sin(x * 16 * M_PI / width) 
+                             + cos( y * 24 * M_PI / height));
             else if(y >= height - yOffset) 
                 g[y * width + x] = 
-                    value * (sin(x*8*6.28/width) 
-                             + cos((height - y)*12*6.28/height));
+                    value * (sin(x * 16 * M_PI / width) 
+                             + cos((height - y)* y * 24 * M_PI / height));
             else if( x < xOffset )
                 g[y * width + x] = 
-                    value * (sin(x*8*6.28/width) 
-                             + cos(y*12*6.28/height));
+                    value * (sin(x * 16 * M_PI / width)  
+                             + cos(y * 24 * M_PI / height));
             else if( x >= width - xOffset )
                 g[y * width + x] = 
-                    value * (sin((width - x)*8*6.28/width) 
-                             + cos(y*12*6.28/height));
+                    value * (sin((width - x)* 16 * M_PI / width) 
+                             + cos(y * 24 * M_PI / height));
             else
                 g[y * width + x] = float(0);
         }
