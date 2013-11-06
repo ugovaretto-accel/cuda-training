@@ -97,7 +97,7 @@ int main( int , char**  ) {
     real_t* dev_in2 = 0; //vector 2
     real_t* dev_out = 0; //result value
     cudaMalloc( &dev_in1, SIZE );
-while(1);    
+    
     cudaMalloc( &dev_in2, SIZE );
     cudaMalloc( &dev_out, SIZE  );
     
