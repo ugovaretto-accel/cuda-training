@@ -8,7 +8,7 @@
 
 // nvcc -arch=sm_20 ../src/18_opengl-interop-glut.cu -DGL_GLEXT_PROTOTYPES \
 // -I ../../../build/castor/local/glm/include \
-// -L ../../../build/castor/local/glfw/lib  -lGL -lglut
+// -L ../../../build/castor/local/glut/lib  -lGL -lglut
 
 
 //#FANCY parameters 130 8 0.22 .001
