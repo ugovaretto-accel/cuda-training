@@ -1,3 +1,9 @@
+//Author: Ugo Varetto
+//Example showing the use of C++11 features to access an array
+//shared between host and device.
+//Requires CUDA >= 6.5 and g++ 4.8
+//compilation: nvcc -std=c++11 ...
+
 #include <iostream>
 #include <cstdlib>
 #include <cassert>
