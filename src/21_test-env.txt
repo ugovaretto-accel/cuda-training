@@ -1,4 +1,11 @@
-HW test environment for cpp 11 tests with CUDA 6.5 and gcc 4.8.2
+HW test environment for cpp 11 tests with CUDA 6.5rc and gcc 4.8.2
+
+NVCC:
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2014 NVIDIA Corporation
+Built on Thu_Jun_19_19:56:26_CDT_2014
+Cuda compilation tools, release 6.5, V6.5.10
+
 
 ==============NVSMI LOG==============
 

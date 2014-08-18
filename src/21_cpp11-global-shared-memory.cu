@@ -19,8 +19,8 @@
 //- deleted methods
 //- default constructors: works but __device__ prefix is required
 //- long long int
-//- constexpr: does work as argument to static_assert, does not work
-//             as size of array
+//- constexpr: does work as template argument and as argument to  to 
+//             static_assert, does not work as size of array
 //- range based for loop: works provied the proper begin/end functions
 //                        are correctly resolved
 
@@ -89,7 +89,7 @@ struct CallableWithFloatOnly {
 
 //constexpr: total nonsense: __device__ required altough this is 
 //a compile-time construct!
- __device__ constexpr size_t ArraySize() { return 5; }
+ __device__ constexpr size_t ArraySize() { return size_t(5); }
 
 //range based for loops
 //In order to have range-based for loops working with non-STL collections
@@ -108,11 +108,18 @@ __device__ int* begin(int* ptr) { return ptr; }
 __device__ int* end(int* ptr) { return ptr + ArraySize(); }
 }
 
+//call with constexpr template parameter
+template < size_t s >
+__device__ void Foo() {
+    printf("%llu\n", s);
+}
+
 //Kernel implementation
 template < typename T, typename... Args>
 __global__ void Init(T* v, Args...args) {
     //nullptr
     assert(v != nullptr);
+    //static_assert
     static_assert(sizeof...(Args) > 0, "Empty argument list");
     static_assert(ArraySize() > 0, "Zero array size");
     static_assert(sizeof(long long int) >= 8, "Non compliant 'long long' size");
@@ -142,9 +149,13 @@ __global__ void Init(T* v, Args...args) {
     if(idx == 0) {
         Ref(Head(args...));
     }
+    //constexpr
+    if(idx == 1) Foo< ArraySize() >();
     //WARNING: constexpr expression ArraySize() cannot be used to specify
-    //the size of the array
-    int array[5] = {1, 2, 3, 4, 5};
+    //the size of the array; the following code results in a compile time
+    //error: "error: variable "array" may not be initialized"
+    //int array[ArraySize()] = {1, 2, 3, 4, 5};
+    int array[] = {1, 2, 3, 4, 5};
     //range based for loop
     int sum = 0;
     for(auto& j: array) {
