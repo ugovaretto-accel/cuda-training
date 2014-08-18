@@ -133,7 +133,7 @@ int main(int, char**) {
     Init<<< 1, 128 >>>(data, INIT_VALUE, 2.0f); //call with float
 #else
     Init<<< 1, 128 >>>(data, INIT_VALUE, 2.0); //call with double -> failure
-#endif    
+#endif
 #else
     Init<<< 1, 128 >>>(data);
 #endif
