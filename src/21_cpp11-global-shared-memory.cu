@@ -2,9 +2,11 @@
 //Example showing the use of C++11 features while also accessing an array
 //shared between host and device throuh UVA/global shared memory.
 //Requires CUDA >= 6.5 and g++ 4.8
-//compilation: nvcc -std=c++11 ...
+//nvcc -std=c++11 -arch="sm_35" -Xcudafe "--diag_suppress=set_but_not_used"
 //  to enable static_assert -DTRIGGER_ASSERT
 //  to enable call to deleted method -DTRIGGER_DELETED_METHOD
+//warning about unused instance is suppressed, instance is declared then
+//used to initialize separate object.
 //Tested C++11 features
 //- auto
 //- decltype
@@ -16,6 +18,11 @@
 //- static_assert
 //- deleted methods
 //- default constructors: works but __device__ prefix is required
+//- long long int
+//- constexpr: does work as argument to static_assert, does not work
+//             as size of array
+//- range based for loop: works provied the proper begin/end functions
+//                        are correctly resolved
 
 #include <iostream>
 #include <cstdlib>
@@ -80,12 +87,35 @@ struct CallableWithFloatOnly {
     float v = 0.0f; //required to trigger compilation for constructors
 };
 
+//constexpr: total nonsense: __device__ required altough this is 
+//a compile-time construct!
+ __device__ constexpr size_t ArraySize() { return 5; }
+
+//range based for loops
+//In order to have range-based for loops working with non-STL collections
+//it is required to have proper implementations of the begin and end functions.
+//Name dependent lookup is used for selecting the right begin/end function but
+//in the case of plain arrays the selected namespace is std and it is therefore
+//required to have begin/end implemented in the std namespace (+__device__ for
+//CUDA).
+//"6.5.4 [stmt.ranged] p1
+//...otherwise, begin-expr and end-expr are begin(__range) and end(__range),
+//respectively, where begin and end are looked up with argument-dependent lookup
+//(3.4.2). For the purposes of this name lookup, namespace std is an associated
+//namespace."
+namespace std{
+__device__ int* begin(int* ptr) { return ptr; }
+__device__ int* end(int* ptr) { return ptr + ArraySize(); }
+}
+
 //Kernel implementation
 template < typename T, typename... Args>
 __global__ void Init(T* v, Args...args) {
     //nullptr
     assert(v != nullptr);
     static_assert(sizeof...(Args) > 0, "Empty argument list");
+    static_assert(ArraySize() > 0, "Zero array size");
+    static_assert(sizeof(long long int) >= 8, "Non compliant 'long long' size");
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     //scoped and based enums
     enum class Enum : int8_t { A = 65, B, C };
@@ -112,6 +142,15 @@ __global__ void Init(T* v, Args...args) {
     if(idx == 0) {
         Ref(Head(args...));
     }
+    //WARNING: constexpr expression ArraySize() cannot be used to specify
+    //the size of the array
+    int array[5] = {1, 2, 3, 4, 5};
+    //range based for loop
+    int sum = 0;
+    for(auto& j: array) {
+        sum += j;
+    }
+    assert(sum == 15);
     //initialize array
     v[idx] = i;
  }
@@ -149,4 +188,5 @@ int main(int, char**) {
     }
     return 0;
 }
+
 
