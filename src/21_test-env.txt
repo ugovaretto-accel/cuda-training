@@ -1,0 +1,274 @@
+HW test environment for cpp 11 tests with CUDA 6.5 and gcc 4.8.2
+
+==============NVSMI LOG==============
+
+Timestamp                           : Mon Aug 18 11:33:59 2014
+Driver Version                      : 340.21
+
+Attached GPUs                       : 2
+GPU 0000:06:00.0
+    Product Name                    : Tesla K20Xm
+    Product Brand                   : Tesla
+    Display Mode                    : Disabled
+    Display Active                  : Disabled
+    Persistence Mode                : Disabled
+    Accounting Mode                 : Disabled
+    Accounting Mode Buffer Size     : 128
+    Driver Model
+        Current                     : N/A
+        Pending                     : N/A
+    Serial Number                   : 0324912020713
+    GPU UUID                        : GPU-9307d9bc-5014-a6be-c8de-0cac8f108d8d
+    Minor Number                    : 0
+    VBIOS Version                   : 80.10.17.00.02
+    MultiGPU Board                  : No
+    Board ID                        : 0x600
+    Inforom Version
+        Image Version               : 2081.0200.01.09
+        OEM Object                  : 1.1
+        ECC Object                  : 3.0
+        Power Management Object     : N/A
+    GPU Operation Mode
+        Current                     : Compute
+        Pending                     : Compute
+    PCI
+        Bus                         : 0x06
+        Device                      : 0x00
+        Domain                      : 0x0000
+        Device Id                   : 0x102110DE
+        Bus Id                      : 0000:06:00.0
+        Sub System Id               : 0x097D10DE
+        GPU Link Info
+            PCIe Generation
+                Max                 : 2
+                Current             : 2
+            Link Width
+                Max                 : 16x
+                Current             : 16x
+        Bridge Chip
+            Type                    : N/A
+            Firmware                : N/A
+    Fan Speed                       : N/A
+    Performance State               : P0
+    Clocks Throttle Reasons
+        Idle                        : Not Active
+        Applications Clocks Setting : Active
+        SW Power Cap                : Not Active
+        HW Slowdown                 : Not Active
+        Unknown                     : Not Active
+    FB Memory Usage
+        Total                       : 5759 MiB
+        Used                        : 13 MiB
+        Free                        : 5746 MiB
+    BAR1 Memory Usage
+        Total                       : 256 MiB
+        Used                        : 2 MiB
+        Free                        : 254 MiB
+    Compute Mode                    : Default
+    Utilization
+        Gpu                         : 0 %
+        Memory                      : 0 %
+        Encoder                     : 0 %
+        Decoder                     : 0 %
+    Ecc Mode
+        Current                     : Enabled
+        Pending                     : Enabled
+    ECC Errors
+        Volatile
+            Single Bit            
+                Device Memory       : 0
+                Register File       : 0
+                L1 Cache            : 0
+                L2 Cache            : 0
+                Texture Memory      : 0
+                Total               : 0
+            Double Bit            
+                Device Memory       : 0
+                Register File       : 0
+                L1 Cache            : 0
+                L2 Cache            : 0
+                Texture Memory      : 0
+                Total               : 0
+        Aggregate
+            Single Bit            
+                Device Memory       : 0
+                Register File       : 0
+                L1 Cache            : 0
+                L2 Cache            : 0
+                Texture Memory      : 0
+                Total               : 0
+            Double Bit            
+                Device Memory       : 0
+                Register File       : 0
+                L1 Cache            : 0
+                L2 Cache            : 0
+                Texture Memory      : 0
+                Total               : 0
+    Retired Pages
+        Single Bit ECC              : 0
+        Double Bit ECC              : 0
+        Pending                     : No
+    Temperature
+        GPU Current Temp            : 30 C
+        GPU Shutdown Temp           : 95 C
+        GPU Slowdown Temp           : 90 C
+    Power Readings
+        Power Management            : Supported
+        Power Draw                  : 57.34 W
+        Power Limit                 : 235.00 W
+        Default Power Limit         : 235.00 W
+        Enforced Power Limit        : 235.00 W
+        Min Power Limit             : 150.00 W
+        Max Power Limit             : 235.00 W
+    Clocks
+        Graphics                    : 732 MHz
+        SM                          : 732 MHz
+        Memory                      : 2600 MHz
+    Applications Clocks
+        Graphics                    : 732 MHz
+        Memory                      : 2600 MHz
+    Default Applications Clocks
+        Graphics                    : 732 MHz
+        Memory                      : 2600 MHz
+    Max Clocks
+        Graphics                    : 784 MHz
+        SM                          : 784 MHz
+        Memory                      : 2600 MHz
+    Clock Policy
+        Auto Boost                  : N/A
+        Auto Boost Default          : N/A
+    Compute Processes               : None
+
+GPU 0000:82:00.0
+    Product Name                    : Tesla K20Xm
+    Product Brand                   : Tesla
+    Display Mode                    : Disabled
+    Display Active                  : Disabled
+    Persistence Mode                : Disabled
+    Accounting Mode                 : Disabled
+    Accounting Mode Buffer Size     : 128
+    Driver Model
+        Current                     : N/A
+        Pending                     : N/A
+    Serial Number                   : 0324912020860
+    GPU UUID                        : GPU-39f07ac7-39fa-c989-c6be-943b2964e9d0
+    Minor Number                    : 1
+    VBIOS Version                   : 80.10.17.00.02
+    MultiGPU Board                  : No
+    Board ID                        : 0x8200
+    Inforom Version
+        Image Version               : 2081.0200.01.09
+        OEM Object                  : 1.1
+        ECC Object                  : 3.0
+        Power Management Object     : N/A
+    GPU Operation Mode
+        Current                     : Compute
+        Pending                     : Compute
+    PCI
+        Bus                         : 0x82
+        Device                      : 0x00
+        Domain                      : 0x0000
+        Device Id                   : 0x102110DE
+        Bus Id                      : 0000:82:00.0
+        Sub System Id               : 0x097D10DE
+        GPU Link Info
+            PCIe Generation
+                Max                 : 2
+                Current             : 2
+            Link Width
+                Max                 : 16x
+                Current             : 16x
+        Bridge Chip
+            Type                    : N/A
+            Firmware                : N/A
+    Fan Speed                       : N/A
+    Performance State               : P0
+    Clocks Throttle Reasons
+        Idle                        : Not Active
+        Applications Clocks Setting : Active
+        SW Power Cap                : Not Active
+        HW Slowdown                 : Not Active
+        Unknown                     : Not Active
+    FB Memory Usage
+        Total                       : 5759 MiB
+        Used                        : 13 MiB
+        Free                        : 5746 MiB
+    BAR1 Memory Usage
+        Total                       : 256 MiB
+        Used                        : 2 MiB
+        Free                        : 254 MiB
+    Compute Mode                    : Default
+    Utilization
+        Gpu                         : 85 %
+        Memory                      : 4 %
+        Encoder                     : 0 %
+        Decoder                     : 0 %
+    Ecc Mode
+        Current                     : Enabled
+        Pending                     : Enabled
+    ECC Errors
+        Volatile
+            Single Bit            
+                Device Memory       : 0
+                Register File       : 0
+                L1 Cache            : 0
+                L2 Cache            : 0
+                Texture Memory      : 0
+                Total               : 0
+            Double Bit            
+                Device Memory       : 0
+                Register File       : 0
+                L1 Cache            : 0
+                L2 Cache            : 0
+                Texture Memory      : 0
+                Total               : 0
+        Aggregate
+            Single Bit            
+                Device Memory       : 0
+                Register File       : 0
+                L1 Cache            : 0
+                L2 Cache            : 0
+                Texture Memory      : 0
+                Total               : 0
+            Double Bit            
+                Device Memory       : 0
+                Register File       : 0
+                L1 Cache            : 0
+                L2 Cache            : 0
+                Texture Memory      : 0
+                Total               : 0
+    Retired Pages
+        Single Bit ECC              : 0
+        Double Bit ECC              : 0
+        Pending                     : No
+    Temperature
+        GPU Current Temp            : 30 C
+        GPU Shutdown Temp           : 95 C
+        GPU Slowdown Temp           : 90 C
+    Power Readings
+        Power Management            : Supported
+        Power Draw                  : 62.23 W
+        Power Limit                 : 235.00 W
+        Default Power Limit         : 235.00 W
+        Enforced Power Limit        : 235.00 W
+        Min Power Limit             : 150.00 W
+        Max Power Limit             : 235.00 W
+    Clocks
+        Graphics                    : 732 MHz
+        SM                          : 732 MHz
+        Memory                      : 2600 MHz
+    Applications Clocks
+        Graphics                    : 732 MHz
+        Memory                      : 2600 MHz
+    Default Applications Clocks
+        Graphics                    : 732 MHz
+        Memory                      : 2600 MHz
+    Max Clocks
+        Graphics                    : 784 MHz
+        SM                          : 784 MHz
+        Memory                      : 2600 MHz
+    Clock Policy
+        Auto Boost                  : N/A
+        Auto Boost Default          : N/A
+    Compute Processes               : None
+
