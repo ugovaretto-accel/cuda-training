@@ -3,6 +3,8 @@
 //shared between host and device throuh UVA/global shared memory.
 //Requires CUDA >= 6.5 and g++ 4.8
 //compilation: nvcc -std=c++11 ...
+//  to enable static_assert -DTRIGGER_ASSERT
+//  to enable call to deleted method -DTRIGGER_DELETED_METHOD
 //Tested C++11 features
 //- auto
 //- decltype
@@ -11,6 +13,9 @@
 //- nullptr
 //- r-value references
 //- scoped and based enums
+//- static_assert
+//- deleted methods
+//- default constructors: works but __device__ prefix is required
 
 #include <iostream>
 #include <cstdlib>
@@ -60,11 +65,27 @@ template < typename T >
 __device__ void Ref(const T&) {
     printf("Const reference\n");
 }
+
+//Allow calling method with float type only, 
+//no automatic conversions allowed
+struct CallableWithFloatOnly {
+    __device__ CallableWithFloatOnly() = default;
+    __device__ CallableWithFloatOnly(const CallableWithFloatOnly&) = default;
+    __device__ void Call(float f) {
+        printf("CallableWithFloatOnly::Call(%f)\n", f);
+    }
+    template < typename T >
+    void Call(T) = delete; //no need to prefix with __device__ 
+                           //for deleted method
+    float v = 0.0f; //required to trigger compilation for constructors
+};
+
 //Kernel implementation
 template < typename T, typename... Args>
 __global__ void Init(T* v, Args...args) {
     //nullptr
     assert(v != nullptr);
+    static_assert(sizeof...(Args) > 0, "Empty argument list");
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     //scoped and based enums
     enum class Enum : int8_t { A = 65, B, C };
@@ -74,13 +95,19 @@ __global__ void Init(T* v, Args...args) {
                static_cast< int >(Enum::B),
                static_cast< int >(Enum::C));
     }
-    //lmbda with capture
+    //lambda with capture
     if(idx > 0 && idx < 20) 
         Invoke([idx](){ printf("Hi from (GPU) thread %d\n", idx); });
     //variadic templates
     //WARNING: in standard C++11 code compiled with
     //clang 3.4 and gcc 4.8.2 the ", Args..." part is not required
     auto i = Extract< 0, Args... >(args...);
+    //deleted methods
+    if(idx == 0) {
+        CallableWithFloatOnly cf;
+        CallableWithFloatOnly cf2(cf);
+        cf2.Call(Extract< 1, Args... >(args...));
+    }
     //r-value references
     if(idx == 0) {
         Ref(Head(args...));
@@ -101,7 +128,15 @@ int main(int, char**) {
         std::cerr << "Error allocating memory" << std::endl;
         exit(EXIT_FAILURE);
     }
-    Init<<< 1, 128 >>>(data, INIT_VALUE);
+#ifndef TRIGGER_ASSERT
+#ifndef TRIGGER_DELETED_METHOD
+    Init<<< 1, 128 >>>(data, INIT_VALUE, 2.0f); //call with float
+#else
+    Init<<< 1, 128 >>>(data, INIT_VALUE, 2.0); //call with double -> failure
+#endif    
+#else
+    Init<<< 1, 128 >>>(data);
+#endif
     if(cudaDeviceSynchronize() != cudaSuccess) {
         std::cerr << "Sync error" << std::endl;
         exit(EXIT_FAILURE);
