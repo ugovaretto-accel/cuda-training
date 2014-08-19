@@ -1,7 +1,5 @@
 Untested C++ features:
 
-initializer lists
-explicit overrides and final
 right angle brackets
 template aliases
 unrestricted unions

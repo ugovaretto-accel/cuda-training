@@ -5,6 +5,7 @@
 //nvcc -std=c++11 -arch="sm_35" -Xcudafe "--diag_suppress=set_but_not_used"
 //  to enable static_assert -DTRIGGER_ASSERT
 //  to enable call to deleted method -DTRIGGER_DELETED_METHOD
+//  to enable final method override -DTRIGGER_FINAL
 //warning about unused instance is suppressed, instance is declared then
 //used to initialize separate object.
 //Tested C++11 features
@@ -23,6 +24,9 @@
 //             static_assert, does not work as size of array
 //- range based for loop: works provied the proper begin/end functions
 //                        are correctly resolved
+//- user defined literals
+//- initializer list
+//- sizeof on class member
 
 #include <iostream>
 #include <cstdlib>
@@ -73,9 +77,15 @@ __device__ void Ref(const T&) {
     printf("Const reference\n");
 }
 
+
+struct FinalBase {
+    __device__ virtual void FinalMethod() final {}
+};
+
 //Allow calling method with float type only, 
 //no automatic conversions allowed
-struct CallableWithFloatOnly {
+struct CallableWithFloatOnly : FinalBase {
+    __device__ CallableWithFloatOnly(float f) : v(f) {}
     __device__ CallableWithFloatOnly() = default;
     __device__ CallableWithFloatOnly(const CallableWithFloatOnly&) = default;
     __device__ void Call(float f) {
@@ -84,6 +94,9 @@ struct CallableWithFloatOnly {
     template < typename T >
     void Call(T) = delete; //no need to prefix with __device__ 
                            //for deleted method
+#ifdef TRIGGER_FINAL
+    __device__ void FinalMethod() override {} //FAIL
+#endif
     float v = 0.0f; //required to trigger compilation for constructors
 };
 
@@ -143,12 +156,18 @@ __global__ void Init(T* v, Args...args) {
     //WARNING: in standard C++11 code compiled with
     //clang 3.4 and gcc 4.8.2 the ", Args..." part is not required
     auto i = Extract< 0, Args... >(args...);
-    //deleted methods
+    //deleted methods and initializer list
     if(idx == 0) {
-        CallableWithFloatOnly cf;
+        CallableWithFloatOnly cf = {2.0f};
         CallableWithFloatOnly cf2(cf);
+        assert(cf2.v == 2.0f);
         cf2.Call(Extract< 1, Args... >(args...));
     }
+    //final
+    if(idx == 0) {
+        CallableWithFloatOnly cf;
+        cf.FinalMethod(); 
+     }
     //r-value references
     if(idx == 0) {
         Ref(Head(args...));
@@ -171,6 +190,8 @@ __global__ void Init(T* v, Args...args) {
         const size_t length = "12345"_l;
         printf("length of '12345' is %llu\n", length);
     }
+    //sizeof on type member
+    assert(sizeof(CallableWithFloatOnly::v) == sizeof(float));
     //initialize array
     v[idx] = i;
  }
