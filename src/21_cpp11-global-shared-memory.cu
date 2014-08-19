@@ -114,6 +114,10 @@ __device__ void Foo() {
     printf("%llu\n", s);
 }
 
+//user defined literals
+__device__
+size_t operator "" _l(const char* , size_t s) { return s; }
+
 //Kernel implementation
 template < typename T, typename... Args>
 __global__ void Init(T* v, Args...args) {
@@ -162,6 +166,11 @@ __global__ void Init(T* v, Args...args) {
         sum += j;
     }
     assert(sum == 15);
+    //user defined literal
+    if(idx == 0) {
+        const size_t length = "12345"_l;
+        printf("length of '12345' is %llu\n", length);
+    }
     //initialize array
     v[idx] = i;
  }

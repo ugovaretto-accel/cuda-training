@@ -1,4 +1,4 @@
-List of C++11 features still to test:
+Untested C++ features:
 
 initializer lists
 explicit overrides and final
@@ -6,7 +6,6 @@ right angle brackets
 template aliases
 unrestricted unions
 (new string literals)
-user defined literals
 (sizeof on class members without explicit object)
 alignof, alignas
 (attributes)
