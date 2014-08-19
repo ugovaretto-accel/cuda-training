@@ -4,8 +4,6 @@ right angle brackets
 template aliases
 unrestricted unions
 (new string literals)
-(sizeof on class members without explicit object)
-alignof, alignas
 (attributes)
 
 

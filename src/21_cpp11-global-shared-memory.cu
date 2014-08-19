@@ -27,6 +27,8 @@
 //- user defined literals
 //- initializer list
 //- sizeof on class member
+//- alignof
+//- alignas: NOT SUPPORTED
 
 #include <iostream>
 #include <cstdlib>
@@ -192,6 +194,16 @@ __global__ void Init(T* v, Args...args) {
     }
     //sizeof on type member
     assert(sizeof(CallableWithFloatOnly::v) == sizeof(float));
+    //alignof and alignas
+    const size_t floatAlignment = alignof(float);
+#ifdef TEST_ALIGNAS
+    alignas(float) const char carray[3];
+    assert(size_t(&carray[0]) % alignof(float) == 0);
+#endif
+    if(idx == 0) {
+        printf("float alignment = %llu\n", floatAlignment);
+    }
+   
     //initialize array
     v[idx] = i;
  }
