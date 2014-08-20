@@ -30,6 +30,7 @@
 //- alignas: NOT SUPPORTED
 //- unrestricted unions
 //- right angle brackets
+//- template aliases
 //- (STL) type traits
 //- (stdlib) <cstdint> types
 
@@ -152,6 +153,12 @@ union UnrestrictedUnion {
     __host__ __device__ UnrestrictedUnion() :  m(U()) {}
 };
 
+//template aliases (host only)
+template < typename A, typename B >
+class TClass {};
+template < typename T >
+using STClass = TClass< T, int >;
+using SSTClass = STClass< float >;
 
 //Kernel implementation
 template < typename T, typename... Args>
