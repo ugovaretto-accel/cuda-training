@@ -20,20 +20,24 @@
 //- deleted methods
 //- default constructors: works but __device__ prefix is required
 //- long long int
-//- constexpr: does work as template argument and as argument to  to 
-//             static_assert, does not work as size of array
-//- range based for loop: works provied the proper begin/end functions
-//                        are correctly resolved
+//- constexpr: does work as template argument as e.g. argument to
+//             static_assert, does not work as size of POD array
+//- range based for loop
 //- user defined literals
 //- initializer list
 //- sizeof on class member
 //- alignof
 //- alignas: NOT SUPPORTED
+//- unrestricted unions
+//- right angle brackets
+//- (STL) type traits
+//- (stdlib) <cstdint> types
 
-#include <iostream>
-#include <cstdlib>
-#include <cassert>
-#include <cstdint>
+#include <iostream>//cout
+#include <cstdlib> //exit
+#include <cassert> //assert
+#include <cstdint> //int8_t
+#include <type_traits> //is_union
 
 //------------------------------------------------------------------------------
 template < int i >
@@ -102,8 +106,7 @@ struct CallableWithFloatOnly : FinalBase {
     float v = 0.0f; //required to trigger compilation for constructors
 };
 
-//constexpr: total nonsense: __device__ required altough this is 
-//a compile-time construct!
+//constexpr:__device__ required
  __device__ constexpr size_t ArraySize() { return size_t(5); }
 
 //range based for loops
@@ -225,6 +228,8 @@ __global__ void Init(T* v, Args...args) {
     uu.m = Int(i);
     //initialize array
     v[idx] = uu.anInt;
+    //right angle bracket and type_traits
+    static_assert(std::is_union< UnrestrictedUnion< int >>::value, "Not a union!");
  }
 
 //------------------------------------------------------------------------------

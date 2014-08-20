@@ -1,6 +1,5 @@
 Untested C++ features:
 
-right angle brackets
 template aliases (host only)
 (new string literals)
 (attributes)
