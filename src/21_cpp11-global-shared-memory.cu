@@ -31,6 +31,9 @@
 //- unrestricted unions
 //- right angle brackets
 //- template aliases
+//- new string literals
+//- attributes: [[attribute]] is parsed correctly and does not result in 
+//              compilation errors
 //- (STL) type traits
 //- (stdlib) <cstdint> types
 
@@ -237,6 +240,14 @@ __global__ void Init(T* v, Args...args) {
     v[idx] = uu.anInt;
     //right angle bracket and type_traits
     static_assert(std::is_union< UnrestrictedUnion< int >>::value, "Not a union!");
+    //new string literals
+const char* text =R"text(
+-------------------
+Some formatted text
+with a newline
+------------------
+)text";
+    if(idx == 0) printf("%s", text);
  }
 
 //------------------------------------------------------------------------------

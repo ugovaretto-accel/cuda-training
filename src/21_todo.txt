@@ -1,5 +1,0 @@
-Untested C++ features:
-
-template aliases (host only)
-(new string literals)
-(attributes)
