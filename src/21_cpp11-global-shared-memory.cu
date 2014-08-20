@@ -126,12 +126,29 @@ __device__ int* end(int* ptr) { return ptr + ArraySize(); }
 //call with constexpr template parameter
 template < size_t s >
 __device__ void Foo() {
-    printf("%llu\n", s);
+    printf("constexpr: Foo<%llu>()\n", s);
 }
 
 //user defined literals
 __device__
 size_t operator "" _l(const char* , size_t s) { return s; }
+
+//unrestricted unions
+//use with union
+struct Int {
+    int i_ = 0;
+    __host__ __device__ operator int() const { return i_; }
+    __host__ __device__ Int(int i) : i_(i) {}
+    __host__ __device__ Int() = default;
+    __host__ __device__ Int(const Int&) = default;
+};
+template < typename U >
+union UnrestrictedUnion {
+    int anInt;
+    U m;
+    __host__ __device__ UnrestrictedUnion() :  m(U()) {}
+};
+
 
 //Kernel implementation
 template < typename T, typename... Args>
@@ -203,9 +220,11 @@ __global__ void Init(T* v, Args...args) {
     if(idx == 0) {
         printf("float alignment = %llu\n", floatAlignment);
     }
-   
+    //unrestricted unions
+    UnrestrictedUnion< Int > uu;
+    uu.m = Int(i);
     //initialize array
-    v[idx] = i;
+    v[idx] = uu.anInt;
  }
 
 //------------------------------------------------------------------------------

@@ -1,10 +1,6 @@
 Untested C++ features:
 
 right angle brackets
-template aliases
-unrestricted unions
+template aliases (host only)
 (new string literals)
 (attributes)
-
-
-
