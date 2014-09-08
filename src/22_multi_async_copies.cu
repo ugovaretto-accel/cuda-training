@@ -18,7 +18,7 @@ void InitHostBuffer(Int8* buf, size_t hostSize, int numDevices) {
     const size_t devSize = hostSize / numDevices;
     assert(devSize);
     for(int i = 0; i != numDevices; ++i) {
-        fill(buf + i * devSize, buf + i * devSize + devSize, Int8(i));
+        fill(buf + i * devSize, buf + i * devSize + devSize, Int8(-(i+1)));
     }
 }
 
@@ -26,9 +26,12 @@ void InitHostBuffer(Int8* buf, size_t hostSize, int numDevices) {
 int main(int, char**) {
     assert(sizeof(Int8) == 1);
     //allocate pinned host buffer
-    const size_t HOST_BUFFER_SIZE = 2 << 31;
+    const size_t HOST_BUFFER_SIZE = size_t(1) << 32;
     const int NUM_DEVICES = 4;
     const size_t DEVICE_BUFFER_SIZE = HOST_BUFFER_SIZE / NUM_DEVICES;
+    cout << "Number of devices:      " << NUM_DEVICES << endl
+         << "Buffer size:            " << HOST_BUFFER_SIZE << endl
+         << "Per-device buffer size: " << DEVICE_BUFFER_SIZE << endl;
     Int8* hostBuffer = 0;
     cudaError_t err = cudaMallocHost((void**) &hostBuffer, HOST_BUFFER_SIZE);
     assert(hostBuffer);
@@ -60,8 +63,10 @@ int main(int, char**) {
         err = cudaSetDevice(d);
         assert(err == cudaSuccess);
         Negate<<< BLOCK_SIZE, THREAD_BLOCK_SIZE >>>(deviceBuffers[d]);
-        //err == cudaGetLastError();
-        //assert(err == cudaSuccess);
+#ifdef CHECK_KERNEL_LAUNCH       
+        err == cudaGetLastError(); //no idea about what this does, does it trigger a barrier ?
+        assert(err == cudaSuccess);
+#endif
     }
     //
     for(int d = 0; d != NUM_DEVICES; ++d) {
@@ -83,11 +88,11 @@ int main(int, char**) {
     for(int d = 0; d != NUM_DEVICES; ++d) {
         for(Int8* p = hostBuffer + d * DEVICE_BUFFER_SIZE;
             p != hostBuffer + d * DEVICE_BUFFER_SIZE + DEVICE_BUFFER_SIZE;
-            ++p) assert(*p == -d);
+            ++p) assert(*p == (d + 1));
     }
 
     err = cudaFreeHost(hostBuffer);
-    assert(err);
+    assert(err == cudaSuccess);
     for(int d = 0; d != NUM_DEVICES; ++d) {
         err = cudaSetDevice(d);
         assert(err == cudaSuccess);
@@ -95,6 +100,7 @@ int main(int, char**) {
         assert(err == cudaSuccess);
     }
     err = cudaDeviceReset();
-    assert(err);
+    assert(err == cudaSuccess);
+    cout << "PASSED" << endl;
     return 0;
 }
