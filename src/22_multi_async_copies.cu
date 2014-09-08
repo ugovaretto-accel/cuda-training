@@ -1,30 +1,42 @@
 #include <cassert>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 
+typedef signed char Int8;
+
 __global__
-void Negate(signed char* buffer) {
+void Negate(Int8* buffer) {
     size_t i = blockDim.x * blockIdx.x + threadIdx.x;
     buffer[i] = -buffer[i];
 }
 
 
+void InitHostBuffer(Int8* buf, size_t hostSize, int numDevices) {
+    const size_t devSize = hostSize / numDevices;
+    assert(devSize);
+    for(int i = 0; i != numDevices; ++i) {
+        fill(buf + i * devSize, buf + i * devSize + devSize, Int8(i));
+    }
+}
+
+
 int main(int, char**) {
-    assert(sizeof(signed char) == 1);
+    assert(sizeof(Int8) == 1);
     //allocate pinned host buffer
-    const size_t HOST_BUFFER_SIZE = 1 << 32;
+    const size_t HOST_BUFFER_SIZE = 2 << 31;
     const int NUM_DEVICES = 4;
     const size_t DEVICE_BUFFER_SIZE = HOST_BUFFER_SIZE / NUM_DEVICES;
-    signed char* hostBuffer = 0;
+    Int8* hostBuffer = 0;
     cudaError_t err = cudaMallocHost((void**) &hostBuffer, HOST_BUFFER_SIZE);
     assert(hostBuffer);
     assert(err == cudaSuccess);
     //initialize host buffer with -1-1-1-1-2-2-2-2-3-3-3-3-4-4-4-4
     InitHostBuffer(hostBuffer, HOST_BUFFER_SIZE, NUM_DEVICES);
     //allocate 4 device buffers, one per device
-    vector< signed char* > deviceBuffers(NUM_DEVICES, 0);
+    vector< Int8* > deviceBuffers(NUM_DEVICES, (Int8*)(0));
     for(int d = 0; d != NUM_DEVICES; ++d) {
         err = cudaSetDevice(d);
         assert(err == cudaSuccess);
@@ -36,8 +48,8 @@ int main(int, char**) {
     for(int d = 0; d != NUM_DEVICES; ++d) {
         err = cudaSetDevice(d);
         assert(err == cudaSuccess);
-        err = cudaMemcpyAsync(deviceBuffer[d], 
-                              hostBuffer + d * DEVICE_BUFFER_SIZE, DEVICE,
+        err = cudaMemcpyAsync(deviceBuffers[d], 
+                              hostBuffer + d * DEVICE_BUFFER_SIZE,
                               DEVICE_BUFFER_SIZE, cudaMemcpyHostToDevice);
         assert(err == cudaSuccess);
     }
@@ -55,8 +67,8 @@ int main(int, char**) {
     for(int d = 0; d != NUM_DEVICES; ++d) {
         err = cudaSetDevice(d);
         assert(err == cudaSuccess);
-        err = cudaMemcpyAsync(hostBuffer + d * DEVICE_BUFFER_SIZE, DEVICE,
-                              deviceBuffer[d], 
+        err = cudaMemcpyAsync(hostBuffer + d * DEVICE_BUFFER_SIZE,
+                              deviceBuffers[d], 
                               DEVICE_BUFFER_SIZE, cudaMemcpyDeviceToHost);
         assert(err == cudaSuccess);
     }
@@ -69,7 +81,7 @@ int main(int, char**) {
     }
     
     for(int d = 0; d != NUM_DEVICES; ++d) {
-        for(signed char* p = hostBuffer + d * DEVICE_BUFFER_SIZE;
+        for(Int8* p = hostBuffer + d * DEVICE_BUFFER_SIZE;
             p != hostBuffer + d * DEVICE_BUFFER_SIZE + DEVICE_BUFFER_SIZE;
             ++p) assert(*p == -d);
     }
@@ -77,7 +89,7 @@ int main(int, char**) {
     err = cudaFreeHost(hostBuffer);
     assert(err);
     for(int d = 0; d != NUM_DEVICES; ++d) {
-        err = setDevice(d);
+        err = cudaSetDevice(d);
         assert(err == cudaSuccess);
         err = cudaFree(deviceBuffers[d]);
         assert(err == cudaSuccess);
