@@ -7,6 +7,8 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <cstdlib>
+#include <map>
 
 using namespace std;
 
@@ -28,15 +30,31 @@ void InitHostBuffer(Int8* buf, size_t hostSize, int numDevices) {
 }
 
 
-int main(int, char**) {
+int main(int argc, char** argv) {
     assert(sizeof(Int8) == 1);
+    if(argc < 2) {
+        cout << "usage: " << argv[0] << " <total buffer size> <gpu ids>" << endl;
+        exit(EXIT_FAILURE);
+    }
+    map< int, int > gpus;
+    for(int i = 2; i != argc; ++i) {
+        gpus[i - 2] = atoi(argv[i]);
+    }
+    const size_t requestedBufferSize = atoll(argv[1]);
+    const int requestedNumDevices = gpus.size();
     //allocate pinned host buffer
-    const size_t HOST_BUFFER_SIZE = size_t(1) << 32;
-    const int NUM_DEVICES = 4;
+    const size_t HOST_BUFFER_SIZE = requestedBufferSize < 1 ? 
+                                    size_t(1) << 32 : requestedBufferSize;
+    const int NUM_DEVICES = requestedNumDevices < 1 ? 4 : requestedNumDevices;
     const size_t DEVICE_BUFFER_SIZE = HOST_BUFFER_SIZE / NUM_DEVICES;
+    assert(DEVICE_BUFFER_SIZE);
     cout << "Number of devices:      " << NUM_DEVICES << endl
          << "Buffer size:            " << HOST_BUFFER_SIZE << endl
          << "Per-device buffer size: " << DEVICE_BUFFER_SIZE << endl;
+    if(HOST_BUFFER_SIZE % NUM_DEVICES != 0) {
+        cout << "WARNING: buffer size NOT "
+                "evenly divisible by device buffer size" << endl;
+    }
     Int8* hostBuffer = 0;
     cudaError_t err = cudaMallocHost((void**) &hostBuffer, HOST_BUFFER_SIZE);
     assert(hostBuffer);
@@ -46,7 +64,8 @@ int main(int, char**) {
     //allocate 4 device buffers, one per device
     vector< Int8* > deviceBuffers(NUM_DEVICES, (Int8*)(0));
     for(int d = 0; d != NUM_DEVICES; ++d) {
-        err = cudaSetDevice(d);
+        const int gpu = gpus[d];
+        err = cudaSetDevice(gpu);
         assert(err == cudaSuccess);
         err = cudaMalloc((void**) &deviceBuffers[d], DEVICE_BUFFER_SIZE);
         assert(deviceBuffers[d]);
@@ -54,7 +73,8 @@ int main(int, char**) {
     }
     //async per-device copies
     for(int d = 0; d != NUM_DEVICES; ++d) {
-        err = cudaSetDevice(d);
+        const int gpu = gpus[d];
+        err = cudaSetDevice(gpu);
         assert(err == cudaSuccess);
         err = cudaMemcpyAsync(deviceBuffers[d], 
                               hostBuffer + d * DEVICE_BUFFER_SIZE,
@@ -65,7 +85,8 @@ int main(int, char**) {
     const int THREAD_BLOCK_SIZE = 1024;
     const int BLOCK_SIZE = DEVICE_BUFFER_SIZE / THREAD_BLOCK_SIZE;
     for(int d = 0; d != NUM_DEVICES; ++d) {
-        err = cudaSetDevice(d);
+        const int gpu = gpus[d];
+        err = cudaSetDevice(gpu);
         assert(err == cudaSuccess);
         Negate<<< BLOCK_SIZE, THREAD_BLOCK_SIZE >>>(deviceBuffers[d]);
 #ifdef CHECK_KERNEL_LAUNCH       
@@ -75,7 +96,8 @@ int main(int, char**) {
     }
     //
     for(int d = 0; d != NUM_DEVICES; ++d) {
-        err = cudaSetDevice(d);
+        const int gpu = gpus[d];
+        err = cudaSetDevice(gpu);
         assert(err == cudaSuccess);
         err = cudaMemcpyAsync(hostBuffer + d * DEVICE_BUFFER_SIZE,
                               deviceBuffers[d], 
@@ -84,7 +106,8 @@ int main(int, char**) {
     }
 
     for(int d = 0; d != NUM_DEVICES; ++d) {
-        err = cudaSetDevice(d);
+        const int gpu = gpus[d];
+        err = cudaSetDevice(gpu);
         assert(err == cudaSuccess);
         err = cudaDeviceSynchronize();
         assert(err == cudaSuccess);
@@ -99,7 +122,8 @@ int main(int, char**) {
     err = cudaFreeHost(hostBuffer);
     assert(err == cudaSuccess);
     for(int d = 0; d != NUM_DEVICES; ++d) {
-        err = cudaSetDevice(d);
+        const int gpu = gpus[d];
+        err = cudaSetDevice(gpu);
         assert(err == cudaSuccess);
         err = cudaFree(deviceBuffers[d]);
         assert(err == cudaSuccess);
