@@ -1,6 +1,14 @@
 //Author: Ugo Varetto
-//Launch multiple asynchronous memcopies on four different gpus
-//and execute kernel.
+//Launch multiple asynchronous memcopies on different gpus
+//and execute kernel. 
+//Specify total buffer size in bytes and list of gpu ids
+//on the command line.
+//NOTE: the number of gpu threads used is always 1024 so the
+//per-gpu buffer size (=total size / num gpus) *must* be
+//evenly divisible by 1024.
+//@todo automatically compute a valid thread count from
+//buffer size
+//
 //Verify (with nvvp) that transfers happen in parallel
 
 #include <cassert>
