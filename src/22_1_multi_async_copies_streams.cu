@@ -15,7 +15,6 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
-#include <map>
 
 using namespace std;
 
@@ -75,6 +74,7 @@ int main(int argc, char** argv) {
         assert(err == cudaSuccess);
     }
     //async per-device copies
+#ifdef SEPARATE_COPY_EXECUTE
     for(int d = 0; d != NUM_STREAMS; ++d) {
         err = cudaMemcpyAsync(streamBuffers[d], 
                               hostBuffer + d * STREAM_BUFFER_SIZE,
@@ -82,17 +82,32 @@ int main(int argc, char** argv) {
                               streams[d]);
         assert(err == cudaSuccess);
     }
+#endif
     //
     const int THREAD_BLOCK_SIZE = 1024;
     const int BLOCK_SIZE = STREAM_BUFFER_SIZE / THREAD_BLOCK_SIZE;
     for(int d = 0; d != NUM_STREAMS; ++d) {
+#ifndef SEPARATE_COPY_EXECUTE        
+        err = cudaMemcpyAsync(streamBuffers[d], 
+                              hostBuffer + d * STREAM_BUFFER_SIZE,
+                              STREAM_BUFFER_SIZE, cudaMemcpyHostToDevice,
+                              streams[d]);
+        assert(err == cudaSuccess);
+#endif        
         Negate<<< BLOCK_SIZE, THREAD_BLOCK_SIZE, 0, streams[d] >>>(streamBuffers[d]);
 #ifdef CHECK_KERNEL_LAUNCH       
         err == cudaGetLastError(); //no idea about what this does, does it trigger a barrier ?
         assert(err == cudaSuccess);
 #endif
+#ifndef SEPARATE_COPY_EXECUTE        
+        err = cudaMemcpyAsync(hostBuffer + d * STREAM_BUFFER_SIZE,
+                              streamBuffers[d], 
+                              STREAM_BUFFER_SIZE, cudaMemcpyDeviceToHost,
+                              streams[d]);
+        assert(err == cudaSuccess);
+#endif        
     }
-    //
+#ifdef SEPARATE_COPY_EXECUTE
     for(int d = 0; d != NUM_STREAMS; ++d) {
         err = cudaMemcpyAsync(hostBuffer + d * STREAM_BUFFER_SIZE,
                               streamBuffers[d], 
@@ -100,11 +115,14 @@ int main(int argc, char** argv) {
                               streams[d]);
         assert(err == cudaSuccess);
     }
+#endif    
 
-    for(int d = 0; d != NUM_STREAMS; ++d) {
-        err = cudaStreamSynchronize(streams[d]);
-        assert(err == cudaSuccess);
-    }
+   // for(int d = 0; d != NUM_STREAMS; ++d) {
+   //     err = cudaStreamSynchronize(streams[d]);
+   //     assert(err == cudaSuccess);
+   // }
+    err = cudaDeviceSynchronize();
+    assert(err == cudaSuccess);
     
     for(int d = 0; d != NUM_STREAMS; ++d) {
         for(Int8* p = hostBuffer + d * STREAM_BUFFER_SIZE;

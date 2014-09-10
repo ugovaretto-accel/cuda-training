@@ -16,7 +16,6 @@
 #include <vector>
 #include <algorithm>
 #include <cstdlib>
-#include <map>
 
 using namespace std;
 
@@ -37,6 +36,20 @@ void InitHostBuffer(Int8* buf, size_t hostSize, int numDevices) {
     }
 }
 
+template < typename RandomAccessIteratorT >
+void EnablePeerAccess(RandomAccessIteratorT begin, RandomAccessIteratorT end) {
+    int curDevice = -1;
+    assert(cudaGetDevice(&curDevice) == cudaSuccess);
+    assert(cudaSetDevice(*begin) == cudaSuccess);
+    ++begin;
+    assert(end > begin);
+    for(;begin != end; ++begin) {
+        const int PEER_DEVICE_TO_ACCESS = *begin;
+        const int PEER_ACCESS_FLAGS = 0;
+        cudaDeviceEnablePeerAccess(PEER_DEVICE_TO_ACCESS, PEER_ACCESS_FLAGS); 
+    }
+    assert(cudaSetDevice(curDevice) == cudaSuccess);
+}
 
 int main(int argc, char** argv) {
     assert(sizeof(Int8) == 1);
@@ -44,7 +57,7 @@ int main(int argc, char** argv) {
         cout << "usage: " << argv[0] << " <total buffer size> <gpu ids>" << endl;
         exit(EXIT_FAILURE);
     }
-    map< int, int > gpus;
+    vector< int > gpus(argc - 2, -1);
     for(int i = 2; i != argc; ++i) {
         gpus[i - 2] = atoi(argv[i]);
     }
@@ -79,6 +92,10 @@ int main(int argc, char** argv) {
         assert(deviceBuffers[d]);
         assert(err == cudaSuccess);
     }
+    //optioanlly enable peer access
+#ifdef PEER_ACCESS
+    EnablePeerAccess(gpus.begin(), gpus.end());
+#endif     
     //async per-device copies
     for(int d = 0; d != NUM_DEVICES; ++d) {
         const int gpu = gpus[d];
