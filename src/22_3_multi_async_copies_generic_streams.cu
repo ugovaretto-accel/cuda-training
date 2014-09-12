@@ -52,7 +52,10 @@ void EnablePeerAccess(const vector< int >& devices, int src) {
     assert(cudaSetDevice(devices[src]) == cudaSuccess);
     for(int i = 0; i != devices.size(); ++i) {
         const int PEER_DEVICE_TO_ACCESS = devices[i];
+        if(PEER_DEVICE_TO_ACCESS == devices[src]) continue;
         const int PEER_ACCESS_FLAGS = 0;
+        cout << "Enabling access to: " << PEER_DEVICE_TO_ACCESS
+             << " from " << src << endl;
         assert(cudaDeviceEnablePeerAccess(PEER_DEVICE_TO_ACCESS, PEER_ACCESS_FLAGS)
                == cudaSuccess); 
          
@@ -113,7 +116,7 @@ int main(int argc, char** argv) {
     }
     //optioanlly enable peer access
 #ifdef PEER_ACCESS
-    EnableAllToAllPeerAccess(gpus.begin());
+    EnableAllToAllPeerAccess(gpus);
 #endif     
     //async per-device copies
     for(int d = 0; d != NUM_DEVICES; ++d) {
@@ -128,6 +131,9 @@ int main(int argc, char** argv) {
         assert(err == cudaSuccess);
     }
 #ifdef PEER_ACCESS    
+    //temporary: replace with proper event-based synchronization;
+    //since each gpu only needs to wait on another gpu use
+    //events to sync streams
     cudaDeviceSynchronize();
 #endif
     const int THREAD_BLOCK_SIZE = 1024;
