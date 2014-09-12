@@ -3,6 +3,7 @@
 //and execute kernel. 
 //Specify total buffer size in bytes and list of gpu ids
 //on the command line.
+//Compile with -DPEER_ACCESS to enable peer access
 //NOTE: the number of gpu threads used is always 1024 so the
 //per-gpu buffer size (=total size / num gpus) *must* be
 //evenly divisible by 1024.
@@ -10,6 +11,8 @@
 //buffer size
 //
 //Verify (with nvvp) that transfers happen in parallel
+//NOTE: PEER_ACCESS only work with GPUs on the same I/O Hub
+
 
 #include <cassert>
 #include <iostream>
@@ -62,7 +65,6 @@ void EnablePeerAccess(const vector< int >& devices, int src) {
     }
     assert(cudaSetDevice(curDevice) == cudaSuccess);
 }
-
 
 
 void EnableAllToAllPeerAccess(const vector< int >& devices) {
@@ -134,7 +136,12 @@ int main(int argc, char** argv) {
     //temporary: replace with proper event-based synchronization;
     //since each gpu only needs to wait on another gpu use
     //events to sync streams
-    cudaDeviceSynchronize();
+    for(int d = 0; d != gpus.size(); ++d) {
+        err = cudaSetDevice(gpus[d]);
+        assert(err == cudaSuccess);
+        err = cudaDeviceSynchronize();
+        assert(err == cudaSuccess);
+    }
 #endif
     const int THREAD_BLOCK_SIZE = 1024;
     const int BLOCK_SIZE = DEVICE_BUFFER_SIZE / THREAD_BLOCK_SIZE;
