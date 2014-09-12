@@ -45,12 +45,11 @@ void InitHostBuffer(Int8* buf, size_t hostSize, int numDevices) {
 
 void EnablePeerAccess(const vector< int >& devices, int src) {
     assert(!devices.empty());
-    assert(src < int(devices.size());
+    assert(src < int(devices.size()));
     assert(src >= 0);
     int curDevice = -1;
     assert(cudaGetDevice(&curDevice) == cudaSuccess);
     assert(cudaSetDevice(devices[src]) == cudaSuccess);
-    assert(end > begin);
     for(int i = 0; i != devices.size(); ++i) {
         const int PEER_DEVICE_TO_ACCESS = devices[i];
         const int PEER_ACCESS_FLAGS = 0;
@@ -139,7 +138,6 @@ int main(int argc, char** argv) {
         assert(err == cudaSuccess);
         const bool KERNEL_ENABLED_OPTION = d == 0; //only enable for first device
 #ifdef PEER_ACCESS
-
         Negate<<< BLOCK_SIZE, THREAD_BLOCK_SIZE, 0, streams[d] >>>(
             deviceBuffers[(d + 1) % NUM_DEVICES], deviceBuffers[d]);
 #else
@@ -183,7 +181,6 @@ int main(int argc, char** argv) {
             ++p) assert(*p == (d + 1));
     }
 #endif    
-
     err = cudaFreeHost(hostBuffer);
     assert(err == cudaSuccess);
     for(int d = 0; d != NUM_DEVICES; ++d) {
