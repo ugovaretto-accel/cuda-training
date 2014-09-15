@@ -11,7 +11,11 @@
 //buffer size
 //
 //Verify (with nvvp) that transfers happen in parallel
-//NOTE: PEER_ACCESS only work with GPUs on the same I/O Hub
+//In case PEER_ACCESS is enabled:
+// - data is initialized as usual
+// - kernels running on evenly indexed GPUs access memory 
+//   from oddly indexed GPUs to updated a memory buffer
+//   allocated on the same GPUs where the kernel is running
 
 
 #include <cassert>
@@ -31,13 +35,26 @@ void Negate(Int8* buffer) {
     buffer[i] = -buffer[i];
 }
 #else
+//return index of buffer to read data from from current GPU
+int MapKey(int current, int numdevices) {
+    return (current + 1) % numdevices;
+}
+__host__ __device__
+int Op(Int8 a, Int8 b) { return a - b; }
+//dest: gpu executing the code
+//src: remote gpu
 __global__
-void Negate(Int8* src, Int8* dest) {
+void Map(Int8* src, Int8* dest) {
     size_t i = blockDim.x * blockIdx.x + threadIdx.x;
-    dest[i] = -src[i];
+    dest[i] = Op(dest[i], src[i]);
+}
+//check that value va was properly computed
+bool Check(Int8 val, Int8 i, int numdevices) {
+    return val == Op(Int8(-(i + 1)), Int8(-(MapKey(i, numdevices) + 1)));
 }
 #endif
 
+//initialze host buffer: buffer 'i' is inititalized with '-(i+1)'
 void InitHostBuffer(Int8* buf, size_t hostSize, int numDevices) {
     const size_t devSize = hostSize / numDevices;
     assert(devSize);
@@ -46,6 +63,7 @@ void InitHostBuffer(Int8* buf, size_t hostSize, int numDevices) {
     }
 }
 
+//Enable device wth index 'src' to access all the other devices
 void EnablePeerAccess(const vector< int >& devices, int src) {
     assert(!devices.empty());
     assert(src < int(devices.size()));
@@ -66,12 +84,20 @@ void EnablePeerAccess(const vector< int >& devices, int src) {
     assert(cudaSetDevice(curDevice) == cudaSuccess);
 }
 
-
-void EnableAllToAllPeerAccess(const vector< int >& devices) {
-    for(int i = 0; i != devices.size(); ++i) EnablePeerAccess(devices, i);
+//Enable peer access using MapKey function to determine
+//which device must evenly indexed gpus access
+void EnableMappedPeerAccess(const vector< int >& devices) {
+    int curDevice = -1;
+    assert(cudaGetDevice(&curDevice) == cudaSuccess);
+    for(int i = 0; i < devices.size(); i += 2) {
+        assert(cudaSetDevice(devices[i]) == cudaSuccess);
+        assert(cudaDeviceEnablePeerAccess(devices[MapKey(i, int(devices.size()))], 0)
+            == cudaSuccess);
+    }
+    assert(cudaSetDevice(curDevice) == cudaSuccess);
 }
 
-
+//main
 int main(int argc, char** argv) {
     assert(sizeof(Int8) == 1);
     if(argc < 2) {
@@ -84,12 +110,20 @@ int main(int argc, char** argv) {
     }
     const size_t requestedBufferSize = atoll(argv[1]);
     const int requestedNumDevices = gpus.size();
-    //allocate pinned host buffer
     const size_t HOST_BUFFER_SIZE = requestedBufferSize < 1 ? 
                                     size_t(1) << 32 : requestedBufferSize;
     const int NUM_DEVICES = requestedNumDevices < 1 ? 4 : requestedNumDevices;
     const size_t DEVICE_BUFFER_SIZE = HOST_BUFFER_SIZE / NUM_DEVICES;
     assert(DEVICE_BUFFER_SIZE);
+    int numdevices = -1;
+    cudaError_t err = cudaGetDeviceCount(&numdevices);
+    assert(err == cudaSuccess);
+    assert(int(gpus.size()) <= numdevices && numdevices > 0);
+    //check that there are no duplicate elements in the input indices
+    assert(unique(gpus.begin(), gpus.end()) == gpus.end());
+    //check that each element is >=0 & < gpus.size())
+    assert(*min_element(gpus.begin(), gpus.end()) >= 0);
+    assert(*max_element(gpus.begin(), gpus.end()) < numdevices);
     cout << "Number of devices:      " << NUM_DEVICES << endl
          << "Buffer size:            " << HOST_BUFFER_SIZE << endl
          << "Per-device buffer size: " << DEVICE_BUFFER_SIZE << endl;
@@ -98,7 +132,8 @@ int main(int argc, char** argv) {
                 "evenly divisible by device buffer size" << endl;
     }
     Int8* hostBuffer = 0;
-    cudaError_t err = cudaMallocHost((void**) &hostBuffer, HOST_BUFFER_SIZE);
+    //allocate pinned host buffer
+    err = cudaMallocHost((void**) &hostBuffer, HOST_BUFFER_SIZE);
     assert(hostBuffer);
     assert(err == cudaSuccess);
     //initialize host buffer with -1-1-1-1-2-2-2-2-3-3-3-3-4-4-4-4
@@ -116,9 +151,9 @@ int main(int argc, char** argv) {
         err = cudaStreamCreate(&streams[d]);
         assert(err == cudaSuccess);
     }
-    //optioanlly enable peer access
+    //optionally enable peer access
 #ifdef PEER_ACCESS
-    EnableAllToAllPeerAccess(gpus);
+    EnableMappedPeerAccess(gpus);
 #endif     
     //async per-device copies
     for(int d = 0; d != NUM_DEVICES; ++d) {
@@ -151,8 +186,10 @@ int main(int argc, char** argv) {
         assert(err == cudaSuccess);
         const bool KERNEL_ENABLED_OPTION = d == 0; //only enable for first device
 #ifdef PEER_ACCESS
-        Negate<<< BLOCK_SIZE, THREAD_BLOCK_SIZE, 0, streams[d] >>>(
-            deviceBuffers[(d + 1) % NUM_DEVICES], deviceBuffers[d]);
+        if(d % 2 != 0) continue; //even ids read from odd ids
+        Map<<< BLOCK_SIZE, THREAD_BLOCK_SIZE, 0, streams[d] >>>(
+                    deviceBuffers[MapKey(d,NUM_DEVICES)], deviceBuffers[d]);
+        cout << gpus[MapKey(d,NUM_DEVICES)] << "->" << gpus[d] << endl;
 #else
         Negate<<< BLOCK_SIZE, THREAD_BLOCK_SIZE, 0, streams[d] >>>(deviceBuffers[d]);
 #endif        
@@ -183,9 +220,13 @@ int main(int argc, char** argv) {
     }
 #ifdef PEER_ACCESS
     for(int d = 0; d != NUM_DEVICES; ++d) {
+        if(d % 2 != 0) continue; //even ids read from odd ids
+        const int src = (d + 1) % NUM_DEVICES;
         for(Int8* p = hostBuffer + d * DEVICE_BUFFER_SIZE;
             p != hostBuffer + d * DEVICE_BUFFER_SIZE + DEVICE_BUFFER_SIZE;
-            ++p);// assert(*p == 1);
+            ++p)if(!Check(*p, d, NUM_DEVICES)) {
+                cout << d << ' ' << int(*p) << endl; return 1;//assert(Check(*p, d, NUM_DEVICES));
+}
     }
 #else
     for(int d = 0; d != NUM_DEVICES; ++d) {
