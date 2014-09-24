@@ -10,6 +10,9 @@
 // -I ../../../build/castor/local/glm/include \
 // -L ../../../build/castor/local/glut/lib  -lGL -lglut
 
+//with CUDA >= 6.5 and GLM >= 9.5
+//nvcc -DCUDA_VERSION=6050 -DGL_GLEXT_PROTOTYPES -DGLM_COMPILER=0 -arch=sm_20 \
+//../018_0_opengl-interop-glut.cu -lGL -L /usr/lib/x86_64-linux-gnu -lglut
 
 //#FANCY parameters 130 8 0.22 .001
 //standard parameters e.g. 66 4 0.1 0.01
