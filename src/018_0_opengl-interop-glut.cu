@@ -1,10 +1,10 @@
 //OpenGL-CUDA interop
 //Author: Ugo Varetto
 
-//Note: GLUT is required when using a remote client(vnc+vglrun) to avoid
-//issues with the X11 keyboard extension.
-//Requires GLM, to deal with the missing support for matrix stack
-//in OpenGL >= 3.3
+//Note: GLUT is required in place of GLFW  when using a remote 
+//client (vnc or vglconnect +vglrun) to avoid issues with the X11 keyboard
+//extension./Requires GLM (OpenGL mathematics), to deal with the missing
+//support for matrix stack in OpenGL >= 3.3
 
 // nvcc -arch=sm_20 ../src/18_opengl-interop-glut.cu -DGL_GLEXT_PROTOTYPES \
 // -I ../../../build/castor/local/glm/include \
@@ -14,7 +14,13 @@
 //nvcc -DCUDA_VERSION=6050 -DGL_GLEXT_PROTOTYPES -DGLM_COMPILER=0 -arch=sm_20 \
 //../018_0_opengl-interop-glut.cu -lGL -L /usr/lib/x86_64-linux-gnu -lglut
 
+//connection through vglconnect:
+//1) log onto login node and ask for node: salloc -N1 -p special
+//2) connect directly from workstation to node: vglconnect castor14
+//3) run with vglrun: vglrun ./a,out ...
+
 //#FANCY parameters 130 8 0.22 .001
+//               or 130 4 0.1 0.2
 //standard parameters e.g. 66 4 0.1 0.01
 
 #include <cstdlib>
@@ -133,21 +139,21 @@ std::vector< float > create_2d_grid(int width, int height,
 #ifdef FANCY
     for(int y = 0; y != height; ++y) {
         for(int x = 0; x != width; ++x) {
-            if(y < yOffset )
-                g[y * width + x] = 
+            if(y <= yOffset )
+                g[y * width + x] =
                     value * (sin(x * 16 * M_PI / width) 
                              + cos( y * 24 * M_PI / height));
             else if(y >= height - yOffset) 
                 g[y * width + x] = 
                     value * (sin(x * 16 * M_PI / width) 
-                             + cos((height - y)* y * 24 * M_PI / height));
-            else if( x < xOffset )
+                             + cos((height - y) * 24 * M_PI / height));
+            else if( x <= xOffset )
                 g[y * width + x] = 
-                    value * (sin(x * 16 * M_PI / width)  
+                    value * (sin(width * 16 * M_PI / width)  
                              + cos(y * 24 * M_PI / height));
             else if( x >= width - xOffset )
                 g[y * width + x] = 
-                    value * (sin((width - x)* 16 * M_PI / width) 
+                   value * (sin((width)* 16 * M_PI / width) 
                              + cos(y * 24 * M_PI / height));
             else
                 g[y * width + x] = float(0);
@@ -270,7 +276,9 @@ int main(int argc, char** argv) {
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGBA);
-    glutInitWindowSize(640,480);
+    const int WWIDTH = 1024;
+    const int WHEIGHT = 768;
+    glutInitWindowSize(WWIDTH, WHEIGHT);
     glutKeyboardFunc(key_callback);
     glutDisplayFunc(f);
     glutIdleFunc(f);
@@ -524,8 +532,8 @@ int main(int argc, char** argv) {
         glutPostRedisplay();
         ++step; //next step 
 #ifdef FANCY
-        std::cout << "\rstep: " << 
-        step; std::cout.flush();
+        std::cout << "\rstep: " << step;
+        std::cout.flush();
 #else     
         //exit if any timing/error value is NAN or inf
         if(relative_error != relative_error || error_rate != error_rate) {
