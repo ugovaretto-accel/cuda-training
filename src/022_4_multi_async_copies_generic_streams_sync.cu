@@ -90,9 +90,9 @@ void EnablePeerAccess(const vector< int >& devices, int src) {
     }
     assert(cudaSetDevice(curDevice) == cudaSuccess);
 }
-
+#ifdef PEER_ACCESS
 //Enable peer access using MapKey function to determine
-//which device must evenly indexed gpus access
+//index of device to access
 void EnableMappedPeerAccess(const vector< int >& devices) {
     int curDevice = -1;
     assert(cudaGetDevice(&curDevice) == cudaSuccess);
@@ -103,6 +103,7 @@ void EnableMappedPeerAccess(const vector< int >& devices) {
     }
     assert(cudaSetDevice(curDevice) == cudaSuccess);
 }
+#endif
 
 //main
 int main(int argc, char** argv) {
@@ -182,8 +183,10 @@ int main(int argc, char** argv) {
                               cudaMemcpyHostToDevice,
                               streams[d]);
         assert(err == cudaSuccess);
+#ifdef PEER_ACCESS        
         err = cudaEventRecord(events[d], streams[d]);
         assert(err == cudaSuccess);
+#endif
     }
     const int THREAD_BLOCK_SIZE = 1024;
     const int BLOCK_SIZE = DEVICE_BUFFER_SIZE / THREAD_BLOCK_SIZE;
@@ -191,7 +194,6 @@ int main(int argc, char** argv) {
         const int gpu = gpus[d];
         err = cudaSetDevice(gpu);
         assert(err == cudaSuccess);
-        const bool KERNEL_ENABLED_OPTION = d == 0; //only enable for first device
 #ifdef PEER_ACCESS
         if(d % 2 != 0) continue; //even ids read from odd ids
         //kernel on stream has to wait for async operations on other stream
