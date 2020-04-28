@@ -96,11 +96,11 @@ int main( int , char**  ) {
         return 1;
     }
 
-    const int VECTOR_SIZE = 0x1000000; //vector size 16Mi
-    const int NUMBER_OF_CHUNKS = 4;
-    const int VECTOR_CHUNK_SIZE = VECTOR_SIZE / NUMBER_OF_CHUNKS;
-    const int FULL_BYTE_SIZE = sizeof( real_t ) * VECTOR_SIZE;
-    const int CHUNK_BYTE_SIZE = FULL_BYTE_SIZE / NUMBER_OF_CHUNKS; // total size in bytes
+    const size_t VECTOR_SIZE = 0x1000000;
+    const size_t NUMBER_OF_CHUNKS = 4;
+    const size_t VECTOR_CHUNK_SIZE = VECTOR_SIZE / NUMBER_OF_CHUNKS;
+    const size_t FULL_BYTE_SIZE = sizeof( real_t ) * VECTOR_SIZE;
+    const size_t CHUNK_BYTE_SIZE = FULL_BYTE_SIZE / NUMBER_OF_CHUNKS; // total size in bytes
     const int THREADS_PER_BLOCK = 256; //number of gpu threads per block
     const int NUMBER_OF_STREAMS = 2;
 
@@ -190,15 +190,15 @@ int main( int , char**  ) {
     }
 #endif
     
-    cudaEventRecord( stop, 0 );
     cudaStreamSynchronize( stream0 );
     cudaStreamSynchronize( stream1 );
+    cudaEventRecord( stop, 0 );
     cudaEventSynchronize( stop );
     float e = float();
     cudaEventElapsedTime( &e, start, stop );
     std::cout << "elapsed time (ms): " << e << std::endl;   
     // print first and last element of vector
-    std::cout << "result: " << vout.front() << ".." << vout[ VECTOR_SIZE - 1 ] << std::endl;
+    std::cout << "result: " << vout[0] << ".." << vout[ VECTOR_SIZE - 1 ] << std::endl;
      
 
     // free memory

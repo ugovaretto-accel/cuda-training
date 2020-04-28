@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #ifdef DOUBLE__
 typedef double real_t;
 #else
