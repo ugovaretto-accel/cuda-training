@@ -1,0 +1,67 @@
+{       
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "nvcc build active file - debug",
+            "type": "shell",
+            "command": "${config:cuda_paths.CUDARoot}/bin/nvcc",
+            "args": [
+                "-g",
+                "-I",
+                "${config:cuda_paths.CUDAIncludePath}",
+                "-L",
+                "${config:cuda_paths.CUDALibPath}",
+                "${file}",
+                "-o",
+                "${fileDirname}/../tmp-build/${fileBasenameNoExtension}.exe"
+            ],
+            "problemMatcher": { 
+                "base": "$gcc", 
+                "fileLocation": [ "absolute" ],
+                "pattern": { 
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(.*)$", 
+                             "file": 1, "line": 2, "column": 3, "message": 4 
+                } 
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "nvcc build active file - release",
+            "type": "shell",
+            "command": "${config:cuda_paths.CUDARoot}/bin/nvcc",
+            "args": [
+                "-I",
+                "${config:cuda_paths.CUDAIncludePath}",
+                "-L",
+                "${config:cuda_paths.CUDALibPath}",
+                "${file}",
+                "-o",
+                "${fileDirname}/../tmp-build/${fileBasenameNoExtension}.exe",
+                //"-DSTREAM_NO_OVERLAP"
+            ],
+            "problemMatcher": { 
+                "base": "$gcc", 
+                "fileLocation": [ "absolute" ],
+                "pattern": { 
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(.*)$", 
+                             "file": 1, "line": 2, "column": 3, "message": 4 
+                } 
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "diagnostics",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "${config:cuda_paths.CUDARoot}/bin"
+            ]
+        }
+    ]
+}

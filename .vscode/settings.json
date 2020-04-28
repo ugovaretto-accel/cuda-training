@@ -1,0 +1,10 @@
+{
+    "cuda_paths": {
+        "CUDARoot": "${env:CUDA_HOME}",
+        "CUDAIncludePath": "${env:CUDA_HOME}/include",
+        "CUDALibPath": "${env:VULKAN_ROOT}/lib64"
+    },
+    "cpp": {
+        "std": "c++17"
+    }
+}
