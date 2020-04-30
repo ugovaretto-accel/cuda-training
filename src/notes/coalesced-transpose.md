@@ -1,0 +1,37 @@
+# Coalesced transpose
+
+## Non coalesced, no shared memory
+
+```shell
+INPUT MATRIX - 8192 rows, 8192 columns
+0 1 2 3
+8192 8193 8194 8195
+16384 16385 16386 16387
+24576 24577 24578 24579
+
+Elapsed time (ms): 3.7551
+
+OUTPUT MATRIX - 8192 rows, 8192 columns
+0 8192 16384 24576
+1 8193 16385 24577
+2 8194 16386 24578
+3 8195 16387 24579
+```
+
+## Coalesced, shared memory
+
+```shell
+INPUT MATRIX - 8192 rows, 8192 columns
+0 1 2 3
+8192 8193 8194 8195
+16384 16385 16386 16387
+24576 24577 24578 24579
+
+Elapsed time (ms): 2.75085
+
+OUTPUT MATRIX - 8192 rows, 8192 columns
+0 8192 16384 24576
+1 8193 16385 24577
+2 8194 16386 24578
+3 8195 16387 24579
+```
