@@ -97,19 +97,10 @@ int main( int argc, const char** argv)
                   << deviceProp.maxGridSize[2] << '\n';
     #ifndef MINIMAL
         std::cout << "  Maximum memory pitch:                          " << deviceProp.memPitch << " bytes\n";
-  //   #if CUDART_VERSION >= 4000
-        // std::cout << "  Memory Bus Width:                              " << deviceProp.memBusWidth << "-bit\n";
-        // std::cout << "  Memory Clock rate:                             " << deviceProp.memoryClock * 1e-3f << " Mhz\n";
-  //   #endif
         std::cout << "  Texture alignment:                             " << deviceProp.textureAlignment << " bytes\n";
         std::cout << "  Clock rate:                                    " << deviceProp.clockRate * 1e-6f << " GHz\n";
-    #if CUDART_VERSION >= 2000
         std::cout << "  Concurrent copy and execution:                 " << (deviceProp.deviceOverlap ? "Yes" : "No") << '\n';
-    #endif
-    #if CUDART_VERSION >= 4000
         std::cout << "  # of Asynchronous Copy Engines:                " << deviceProp.asyncEngineCount << '\n';
-    #endif
-    #if CUDART_VERSION >= 2020
         std::cout << "  Run time limit on kernels:                     " << (deviceProp.kernelExecTimeoutEnabled ? "Yes\n" : "No\n");
         std::cout << "  Integrated:                                    " << (deviceProp.integrated ? "Yes\n" : "No\n");
         std::cout << "  Support host page-locked memory mapping:       " << (deviceProp.canMapHostMemory ? "Yes\n" : "No\n");
@@ -120,22 +111,16 @@ int main( int argc, const char** argv)
                                                                                   deviceProp.computeMode == cudaComputeModeProhibited ?
                                                                                       "Prohibited (no host thread can use this device)\n" :
                                                                                       "Unknown\n");
+        std::cout << "  Memory bus width:                              " << deviceProp.memoryBusWidth << " bytes\n";
+        std::cout << "  Memory clock:                                  " << deviceProp.memoryClockRate * 1e-6f << " GHz\n";
     #endif
-    #if CUDART_VERSION >= 3000
         std::cout << "  Concurrent kernel execution:                   " << (deviceProp.concurrentKernels ? "Yes\n" : "No\n");
-    #endif
-    #if CUDART_VERSION >= 3010
         std::cout << "  Device has ECC support enabled:                " << (deviceProp.ECCEnabled ? "Yes\n" : "No\n");
-    #endif
-    #if CUDART_VERSION >= 3020
         std::cout << "  Device is using TCC driver mode:               " << (deviceProp.tccDriver ? "Yes\n" : "No\n");
-    #endif
-    #if CUDART_VERSION >= 4000
         std::cout << "  Unified addressing:                            " << (deviceProp.unifiedAddressing ? "Yes\n" : "No\n");
         std::cout << "  PCI bus id:                                    " << deviceProp.pciBusID << '\n';
         std::cout << "  PCI device id:                                 " << deviceProp.pciDeviceID << '\n';
-    #endif
-#endif    
+   
     }
 
     return 0;
