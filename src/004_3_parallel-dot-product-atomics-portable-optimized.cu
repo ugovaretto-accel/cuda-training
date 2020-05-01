@@ -25,8 +25,7 @@ __device__ unsigned int count = 0;
 __shared__ real_t cache[BLOCK_SIZE];
 
 // partial dot product: each thread block produces a single value
-__device__ void partial_dot(const real_t* v1, const real_t* v2, int N,
-                            real_t* out) {
+__device__ void partial_dot(const real_t* v1, const real_t* v2, int N) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= N) return;
     cache[threadIdx.x] = 0.f;
@@ -47,29 +46,6 @@ __device__ void partial_dot(const real_t* v1, const real_t* v2, int N,
     }
 }
 
-// sum all elements in array; array size assumed to be equal to number of blocks
-__device__ real_t sum(const real_t* v) {
-    cache[threadIdx.x] = 0.f;
-    int i = threadIdx.x;
-    // the threads in the thread block iterate oevr the entire domain
-    // of size == gridDim.x == total number of blocks; iteration happens
-    // whenever the number of threads in a thread block is lower than
-    // the total number of thread blocks
-    while (i < gridDim.x) {
-        cache[threadIdx.x] += v[i];
-        i += blockDim.x;
-    }
-    __syncthreads();  // required because later on the current thread is
-                      // accessing data written by another thread
-    i = BLOCK_SIZE / 2;
-    while (i > 0) {
-        if (threadIdx.x < i) cache[threadIdx.x] += cache[threadIdx.x + i];
-        __syncthreads();
-        i /= 2;
-    }
-    return cache[0];
-}
-
 // perform parallel dot product in two steps:
 // 1) each block computes a single value and stores it into an array of size ==
 // number of blocks 2) the last block to finish step (1) performs a reduction on
@@ -80,10 +56,9 @@ __device__ real_t sum(const real_t* v) {
 __global__ void full_dot(const real_t* v1, const real_t* v2, int N,
                          real_t* out) {
     // true if last block to compute value
-    __shared__ bool lastBlock; //note: shared variables cannot be initialised
-                               //      in code
+    bool lastBlock = false; 
     // each block computes a value
-    partial_dot(v1, v2, N, out);
+    partial_dot(v1, v2, N);
     if (threadIdx.x == 0) {
         // value is stored into output array by first thread of each block
         out[blockIdx.x] = cache[0];
@@ -94,19 +69,13 @@ __global__ void full_dot(const real_t* v1, const real_t* v2, int N,
         // check if last block to perform computation
         lastBlock = (v == gridDim.x - 1);
     }
-    // the code below is executed by *all* threads in the block:
-    // make sure all the threads in the block access the correct value
-    // of the variable 'lastBlock'
-    __syncthreads();
-
+    
     // last block performs a the final reduction steps which produces one single
     // value
-    if (lastBlock) {
-        real_t r = sum(out);
-        if (threadIdx.x == 0) {
-            out[0] = r;
-            count = 0;
-        }
+    if (lastBlock && threadIdx.x == 0) {
+        float r = 0;
+        for(float* b = out; b != out + gridDim.x; r += *b++);
+        out[0] = r;
     }
 }
 

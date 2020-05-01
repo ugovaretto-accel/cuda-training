@@ -22,7 +22,7 @@ const size_t BLOCK_SIZE = 16;
 // 2 2 2 2
 // 4 4
 // 8 <-- add value to global result
-// global result variable contained fully computed dot product
+// global result variable containes fully computed dot product
 // launch grid size <= array size
 // number of returned partial redutions == number of blocks
 __global__ void full_dot(const real_t* v1, const real_t* v2, real_t* out,

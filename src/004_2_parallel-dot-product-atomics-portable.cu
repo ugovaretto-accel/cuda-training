@@ -22,8 +22,7 @@ const size_t BLOCK_SIZE = 16;
 // been acquired i.e. has been set to 1 after the mutex has been released i.e.
 // set to zero.
 __device__ void lock(int* mutex) {
-    while (atomicCAS(mutex, 0, 1) != 0)
-        ;
+    while (atomicCAS(mutex, 0, 1) != 0);
 }
 
 // set mutex to zero; note that we do not need to use an atomic op here;
